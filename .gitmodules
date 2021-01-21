@@ -1,0 +1,3 @@
+[submodule "emoji-images"]
+	path = emoji-images
+	url = https://github.com/cj1128/emoji-images.git
