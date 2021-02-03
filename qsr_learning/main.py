@@ -2,8 +2,10 @@
 
 import json
 import math
+import random
 from itertools import product
 from pathlib import Path
+from typing import List, Tuple
 
 import git
 import numpy as np
@@ -250,13 +252,21 @@ def below(object1, object2):
     return (not overlap(object1, object2)) and (constraint1 and constraint2)
 
 
-def generate_positive_examples(objects, size=1):
+def generate_positive_examples(objects, size=1) -> List[Tuple[str, str, str]]:
+    """
+    Generate positive examples from a list of objects.
+
+    :param objects: a list of objects
+    :param size: the number of positive examples to be generated
+
+    :returns: a list of triples (object1, relation, object2)
+    """
     relations = [left_of, right_of, above, below]
     assert size <= math.factorial(len(objects))
     all_positive_examples = []
     for object1, object2 in product(objects, objects):
         if object1 != object2:
-            for rel in [left_of, right_of, above, below]:
+            for rel in relations:
                 if rel(object1, object2):
                     all_positive_examples.append(
                         (
@@ -269,31 +279,46 @@ def generate_positive_examples(objects, size=1):
     return all_positive_examples[:size]
 
 
-def generate_one_negative_example(object_names, relation_names, positive_examples):
-    negative_example_found = False
-    while not negative_example_found:
-        head, tail = np.random.choice(object_names, size=(2,), replace=False)
-        relation = np.random.choice(relation_names)
-        negative_example_candidate = (head, relation, tail)
-        if negative_example_candidate not in positive_examples:
-            negative_example = negative_example_candidate
-            negative_example_found = True
+def generate_one_negative_example(
+    object_names, relation_names, positive_examples, negative_sample_type="relation"
+):
+    head, relation, tail = random.choice(list(positive_examples))
+    if negative_sample_type == "head":
+        object_names = object_names - {head, tail}
+        head = random.choice(list(object_names))
+    elif negative_sample_type == "relation":
+        relation_names = relation_names - {relation}
+        relation = random.choice(list(relation_names))
+    elif negative_sample_type == "tail":
+        object_names = object_names - {head, tail}
+        tail = random.choice(list(object_names))
+    else:
+        raise ValueError
+    negative_example = (head, relation, tail)
     return negative_example
 
 
-def generate_negative_examples(objects, positive_examples, size=None):
+def generate_negative_examples(
+    objects,
+    positive_examples,
+    size=None,
+    mixture=Munch(head=1, relation=1, tail=1),
+):
     relations = [left_of, right_of, above, below]
     if not size:
         size = len(positive_examples)
-    object_names = [obj.name for obj in objects]
-    relation_names = [rel.__name__ for rel in [left_of, right_of, above, below]]
+    object_names = {obj.name for obj in objects}
+    relation_names = {rel.__name__ for rel in relations}
     negative_examples = set()
+    negative_sample_types = list(mixture.keys())
+    p = np.array(list(mixture.values()))
+    p = p / p.sum()
     while len(negative_examples) < size:
-        negative_examples.add(
-            generate_one_negative_example(
-                object_names, relation_names, positive_examples
-            )
+        negative_sample_type = np.random.choice(negative_sample_types, p=p)
+        negative_example = generate_one_negative_example(
+            object_names, relation_names, positive_examples, negative_sample_type
         )
+        negative_examples.add(negative_example)
     return negative_examples
 
 
