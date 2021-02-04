@@ -20,31 +20,31 @@ ROOT = Path(repo.working_tree_dir)
 
 config = Munch(
     model=Munch(
-        embedding_dim=20,
+        embedding_dim=tune.grid([10, 20, 30, 40]),
     ),
     train=Munch(
         batch_size=64,
-        num_epochs=10,
+        num_epochs=100,
     ),
     data=Munch(
         negative_sample_mixture=Munch(head=1, relation=1, tail=1),
         train=Munch(
             relations=[left_of, right_of],
-            num_images=128,
+            num_images=tune.grid([2 ** 12, 2 ** 13, 2 ** 14, 2 ** 15]),
             num_objects=3,
             num_pos_questions_per_image=2,
             num_neg_questions_per_image=2,
         ),
         validation=Munch(
             relations=[left_of, right_of],
-            num_images=16,
+            num_images=8096,
             num_objects=3,
             num_pos_questions_per_image=2,
             num_neg_questions_per_image=2,
         ),
         test=Munch(
             relations=[left_of, right_of],
-            num_images=16,
+            num_images=8096,
             num_objects=3,
             num_pos_questions_per_image=2,
             num_neg_questions_per_image=2,
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         name=experiment_name,
         stop={"training_iteration": 1} if args.smoke_test else None,
         config=config,
-        resources_per_trial={"cpu": 6, "gpu": 1},
+        resources_per_trial={"cpu": 9, "gpu": 8},
         num_samples=1 if args.smoke_test else 64,
         keep_checkpoints_num=1,
         checkpoint_score_attr="validation_accuracy",
