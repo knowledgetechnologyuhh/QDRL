@@ -80,7 +80,7 @@ if __name__ == "__main__":
         name=experiment_name,
         stop={"training_iteration": 1} if args.smoke_test else None,
         config=config,
-        resources_per_trial={"cpu": 6, "gpu": 1},
+        resources_per_trial={"cpu": 9, "gpu": 8},
         num_samples=1 if args.smoke_test else 64,
         keep_checkpoints_num=1,
         checkpoint_score_attr="validation_accuracy",
