@@ -6,7 +6,7 @@ import random
 from itertools import product
 from pathlib import Path
 from typing import List, Tuple
-
+from PIL import ImageDraw
 import git
 import numpy as np
 import torch
@@ -42,6 +42,85 @@ emoji_name2unicode = {
     unicode2emoji_name[unicode]: unicode for unicode in unicode2emoji_name
 }
 emoji_names = list(emoji_name2unicode.keys())
+
+
+class Entity:
+    def __init__(self, w, h, p=(0, 0), theta=0, name=None, color=None):
+        self.bbox_float = np.array([[0, 0], [0, h], [w, h], [w, 0]])
+        self.rotate(theta)
+        self.translate(p)
+        self.name = name
+        self.color = color
+
+    def draw(self, base, orientation_marker=True):
+        d = ImageDraw.Draw(base)
+        d.polygon(
+            [tuple(p) for p in self.bbox],
+            fill=self.color if self.color else (0, 0, 0, 255),
+        )
+        # Use the tenth of the bounding box (from the top) for marking the front side of an entity.
+        if orientation_marker:
+            bottom_left = ((self.bbox_float[0] - self.bbox_float[1]) / 10).astype(
+                int
+            ) + self.top_left
+            bottom_right = ((self.bbox_float[3] - self.bbox_float[2]) / 10).astype(
+                int
+            ) + self.top_right
+            d.polygon(
+                [
+                    tuple(p)
+                    for p in (bottom_left, self.top_left, self.top_right, bottom_right)
+                ],
+                fill=(255, 255, 255, 255),
+            )
+        return base
+
+    def rotate(self, theta):
+        c, s = np.cos(theta), np.sin(theta)
+        R = np.array([[c, -s], [s, c]])
+        self.bbox_float = self.bbox_float @ R.transpose()
+
+    def translate(self, p):
+        self.bbox_float += np.array(p)
+
+    @property
+    def bbox(self):
+        """Round the oringinal bbox coordinates."""
+        return self.bbox_float.round().astype(int)
+
+    @property
+    def bottom_left(self):
+        return self.bbox[0]
+
+    @property
+    def top_left(self):
+        return self.bbox[1]
+
+    @property
+    def top_right(self):
+        return self.bbox[2]
+
+    @property
+    def bottom_right(self):
+        return self.bbox[3]
+
+    def __repr__(self):
+        return f"{self.name}: {', '.join(str(tuple(p)) for p in self.bbox)}"
+
+
+# Tests
+def test_entity():
+    w = 2
+    h = 3
+    p = (1, 2)
+    theta = np.pi / 2
+
+    entity = Entity(w, h, p=p, theta=theta)
+
+    assert np.allclose(entity.top_left, np.array([-2, 2]))
+    assert np.allclose(entity.top_right, np.array([-2, 4]))
+    assert np.allclose(entity.bottom_left, np.array([1, 2]))
+    assert np.allclose(entity.bottom_right, np.array([1, 4]))
 
 
 def draw(objects, canvas_size=(224, 224)):
