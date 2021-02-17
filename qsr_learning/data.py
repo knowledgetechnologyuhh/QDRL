@@ -30,9 +30,9 @@ def in_relation(
 
 
 def generate_entities(
-    emoji_names,
+    entity_names,
     num_entities: int = 5,
-    absolute_direction=False,
+    frame_of_reference: str = "absolute",
     w_range: Tuple[int, int] = (10, 30),
     h_range: Tuple[int, int] = (10, 30),
     canvas_size: Tuple[int, int] = (224, 224),
@@ -47,19 +47,19 @@ def generate_entities(
     :param canvas_size: (width, height)
     """
 
-    emoji_names_copy = deepcopy(emoji_names)
-    np.random.shuffle(emoji_names_copy)
+    entity_names_copy = deepcopy(entity_names)
+    np.random.shuffle(entity_names_copy)
 
     # Rotate and translate the entities.
     entities_in_canvas = entities_in_relation = False
     while not (entities_in_canvas and entities_in_relation):
         entities = []
-        for emoji_name in emoji_names_copy[:num_entities]:
+        for name in entity_names_copy[:num_entities]:
             theta = random.uniform(0.0, 2 * math.pi)
             p = (random.uniform(0, canvas_size[0]), random.uniform(0, canvas_size[1]))
             entity = Entity(
-                name=emoji_name,
-                absolute_direction=absolute_direction,
+                name=name,
+                frame_of_reference=frame_of_reference,
                 p=p,
                 theta=theta,
                 size=(random.randint(*w_range), (random.randint(*h_range))),
@@ -77,7 +77,7 @@ def generate_entities(
     return entities
 
 
-def generate_examples(entities, relations, size=None):
+def generate_questions(entities, relations, size=None):
     """
     Generate positive examples from a list of entities.
 
@@ -87,13 +87,13 @@ def generate_examples(entities, relations, size=None):
     :returns: a list of triples (entity1, relation, entity2)
     """
     # Generate positive examples
-    positive_examples = []
-    negative_examples = []
+    positive_questions = []
+    negative_questions = []
     for entity1, entity2 in product(entities, entities):
         if entity1 != entity2:
             for rel in relations:
                 if rel(entity1, entity2):
-                    positive_examples.append(
+                    positive_questions.append(
                         (
                             entity1.name,
                             rel.__name__,
@@ -101,14 +101,14 @@ def generate_examples(entities, relations, size=None):
                         )
                     )
                 else:
-                    negative_examples.append(
+                    negative_questions.append(
                         (
                             entity1.name,
                             rel.__name__,
                             entity2.name,
                         )
                     )
-    return positive_examples, negative_examples
+    return positive_questions, negative_questions
 
 
 def draw_entities(
