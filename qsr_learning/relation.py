@@ -1,5 +1,6 @@
 import numpy as np
 from munch import Munch
+from qsr_learning.entity import Entity
 
 
 def point_left_of_directed_line(point, dline):
@@ -74,4 +75,15 @@ def below(entity1, entity2):
             entity1.bottom_right,
         )
     )
-    
+
+
+def test_left_of():
+    entity1 = Entity(2, 3)
+    entity2 = Entity(2, 3, p=(3, 3))
+    assert left_of(entity1, entity2)
+
+
+def test_right_of():
+    entity1 = Entity(2, 3)
+    entity2 = Entity(2, 3, p=(3, 3))
+    assert right_of(entity2, entity1)

@@ -6,6 +6,7 @@ import git
 import numpy as np
 from munch import Munch
 from PIL import Image, ImageDraw
+from functools import lru_cache
 
 repo = git.Repo(Path(".").absolute(), search_parent_directories=True)
 ROOT = Path(repo.working_tree_dir)
@@ -35,10 +36,13 @@ emoji_name2unicode = {
 emoji_names = list(emoji_name2unicode.keys())
 
 
-def load_emoji(emoji_name, size=(32, 32)):
+@lru_cache(len(emoji_names))  # cache the outputs as there are many repetitive calls
+def load_emoji(emoji_name, size=None):
     """Load the emojis."""
     unicode = emoji_name2unicode[emoji_name]
-    image = Image.open(images_path / (unicode + ".png")).convert("RGBA").resize(size)
+    image = Image.open(images_path / (unicode + ".png")).convert("RGBA")
+    if size:
+        image = image.resize(size)
     return image
 
 
@@ -96,7 +100,7 @@ def crop_image(image):
             [x_max, y_max],
             [x_max, 0],
         ]
-    )
+    ).astype(float)
     return image, image_array, fbbox
 
 
@@ -120,6 +124,7 @@ class Entity:
         self.center = (self.flt_bbox[2] - self.flt_bbox[0]) / 2 + self.flt_bbox[0]
         self.rotate(self.theta)
         self.translate(self.p)
+        self.size = size
 
     def rotate(self, theta):
         c, s = np.cos(theta), np.sin(theta)
@@ -127,6 +132,7 @@ class Entity:
 
         self.image = self.image.rotate(
             360 * theta / (2 * math.pi),
+            resample=3,
             expand=True,
         )
         self.image_array = image2array(self.image)
@@ -142,41 +148,48 @@ class Entity:
         self,
         base,
         show_bbox=False,
-        bbox_color=None,
-        bbox_border=None,
+        bbox_fill=None,
+        bbox_outline="white",
         orientation_marker=False,
     ):
         d = ImageDraw.Draw(base)
 
-        if show_bbox:
-            d.polygon(
-                [(p[0], base.size[1] - p[1]) for p in self.bbox],
-                fill=bbox_color if bbox_color else None,
-                outline=bbox_border if bbox_border else None,
-            )
-
-        if orientation_marker:
-            # Use the tenth of the bounding box (from the top) for marking the front side of an self.
-            bottom_left = (
-                ((self.flt_bbox[0] - self.flt_bbox[1]) / 10 + self.flt_bbox[1])
-                .round()
-                .astype(int)
-            )
-            bottom_right = (
-                ((self.flt_bbox[3] - self.flt_bbox[2]) / 10 + self.flt_bbox[2])
-                .round()
-                .astype(int)
-            )
-            vertices = [bottom_left, self.top_left, self.top_right, bottom_right]
-            d.polygon(
-                [(p[0], base.size[1] - p[1]) for p in vertices],
-                fill="white",
-            )
         # merge the entity image and the base
         base.alpha_composite(
             self.image,
             (self.bbox[:, 0].min(), base.size[1] - self.bbox[:, 1].max()),
         )
+
+        if show_bbox:
+            vertices = [
+                self.bottom_left,
+                self.top_left,
+                self.top_right,
+                self.bottom_right,
+            ]
+            d.polygon(
+                [(p[0], base.size[1] - p[1]) for p in vertices],
+                fill=bbox_fill,
+                outline=bbox_outline,
+            )
+
+        if orientation_marker:
+            # Use the 1/4 of the bounding box (from the top) for marking the front side of an self.
+            orientation = self.flt_bbox[1] - self.flt_bbox[0]
+            orientation = orientation / np.linalg.norm(orientation)
+            marker_thickness = max(self.size[0] // 8, 4)
+            bottom_left = (
+                (self.flt_bbox[1] - orientation * marker_thickness).round().astype(int)
+            )
+            bottom_right = (
+                (self.flt_bbox[2] - orientation * marker_thickness).round().astype(int)
+            )
+            vertices = [bottom_left, self.top_left, self.top_right, bottom_right]
+            d.polygon(
+                [(p[0], base.size[1] - p[1]) for p in vertices],
+                fill=None,
+                outline="red",
+            )
         return base
 
     @property
@@ -202,3 +215,17 @@ class Entity:
 
     def __repr__(self):
         return f"{self.name}: {', '.join(str(tuple(p)) for p in self.bbox)}"
+
+
+def test_entity():
+    w = 2
+    h = 3
+    p = (1, 2)
+    theta = np.pi / 2
+
+    entity = Entity(w, h, p=p, theta=theta)
+
+    assert np.allclose(entity.top_left, np.array([-2, 2]))
+    assert np.allclose(entity.top_right, np.array([-2, 4]))
+    assert np.allclose(entity.bottom_left, np.array([1, 2]))
+    assert np.allclose(entity.bottom_right, np.array([1, 4]))
