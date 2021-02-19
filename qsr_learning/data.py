@@ -2,11 +2,16 @@ import math
 import random
 from copy import deepcopy
 from itertools import product
-from typing import Callable, List, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np
+import PIL
+import torch
+import torchvision
 from PIL import Image, ImageDraw
+from torch.utils.data import DataLoader, IterableDataset
 
+import qsr_learning
 from qsr_learning.entity import Entity
 from qsr_learning.relation import above, below, left_of, right_of
 
@@ -129,3 +134,136 @@ def draw_entities(
     for entity in entities:
         entity.draw(canvas, show_bbox=show_bbox, orientation_marker=orientation_marker)
     return canvas
+
+
+# from qsr_learning.relation import above, below, left_of, right_of
+
+# type aliases
+Questions = List[Tuple[int, int, int]]
+Answers = List[int]
+
+
+class DRLDataset(IterableDataset):
+    def __init__(
+        self,
+        entity_names,
+        relation_names,
+        num_entities,
+        frame_of_reference,
+        num_examples,
+        show_bbox=False,
+        orientation_marker=False,
+        transform=torchvision.transforms.ToTensor(),
+    ):
+        super().__init__()
+        self.entity_names = entity_names
+        self.relations = [
+            getattr(qsr_learning.relation, relation_name)
+            for relation_name in relation_names
+        ]
+        self.num_entities = num_entities
+        self.frame_of_reference = frame_of_reference
+        self.num_examples = num_examples
+        self.show_bbox = show_bbox
+        self.orientation_marker = orientation_marker
+        self.transform = transform
+
+        self.idx2ent, self.ent2idx = {}, {}
+        for idx, entity_name in enumerate(sorted(entity_names)):
+            self.idx2ent[idx] = entity_name
+            self.ent2idx[entity_name] = idx
+
+        self.idx2rel, self.rel2idx = {}, {}
+        for idx, relation_name in enumerate(sorted(relation_names)):
+            self.idx2rel[idx] = relation_name
+            self.rel2idx[relation_name] = idx
+
+        self.image: Dict[int, PIL.Image] = {}
+        self.questions: Dict[int, Questions] = {}
+        self.answers: Dict[int, Answers] = {}
+
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:  # single-process data loading, return the full iterator
+            return iter(self.generate_data(worker_id=0, num_examples=self.num_examples))
+        else:
+            return iter(
+                self.generate_data(
+                    worker_id=worker_info.id,
+                    num_examples=int(
+                        math.ceil(self.num_examples / float(worker_info.num_workers))
+                    ),
+                )
+            )
+
+    def generate_data(self, worker_id, num_examples):
+        for i in range(num_examples):
+            if not self.questions.get(worker_id, []):
+                image, questions, answers = self.generate_scene()
+                examples = list(zip(questions, answers))
+                random.shuffle(examples)
+                questions, answers = zip(*examples)
+                self.image[worker_id] = image
+                self.questions[worker_id] = list(questions)
+                self.answers[worker_id] = list(answers)
+            yield (
+                self.transform(self.image[worker_id]),
+                torch.tensor(self.questions[worker_id].pop()),
+                torch.tensor(self.answers[worker_id].pop()),
+            )
+
+    def generate_scene(self):
+        """Generate a scene and all questions with their answers."""
+        entities = generate_entities(
+            entity_names=self.entity_names,
+            num_entities=self.num_entities,
+            frame_of_reference=self.frame_of_reference,
+            w_range=(32, 32),
+            h_range=(32, 32),
+        )
+
+        image = draw_entities(
+            entities,
+            show_bbox=self.show_bbox,
+            orientation_marker=self.orientation_marker,
+        )
+        background = Image.new("RGBA", image.size, (0, 0, 0))
+        image = Image.alpha_composite(background, image).convert("RGB")
+
+        positive_questions, negative_questions = generate_questions(
+            entities, self.relations
+        )
+
+        def question2idx_tuple(question):
+            entity1, relation, entity2 = question
+            return (
+                self.ent2idx[entity1],
+                self.rel2idx[relation],
+                self.ent2idx[entity2],
+            )
+
+        questions = [
+            question2idx_tuple(question) for question in positive_questions
+        ] + [question2idx_tuple(question) for question in negative_questions]
+
+        answers = [1] * len(positive_questions) + [0] * len(negative_questions)
+        return image, questions, answers
+
+
+def get_mean_and_std(entity_names, relation_names, num_entities, frame_of_reference):
+    """Get the mean and the std of the specific dataset."""
+    drl_dataset = DRLDataset(
+        entity_names=entity_names,
+        relation_names=relation_names,
+        num_entities=num_entities,
+        frame_of_reference="absolute",
+        num_examples=len(entity_names) * num_entities,  # This is only a rough estimate
+        transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]),
+    )
+    loader = DataLoader(drl_dataset, batch_size=8)
+    channel_values = (
+        torch.stack([img[0] for img, _, _ in loader], dim=0)
+        .permute(1, 0, 2, 3)
+        .reshape(3, -1)
+    )
+    return channel_values.mean(-1), channel_values.std(-1)
