@@ -40,6 +40,7 @@ def generate_entities(
     frame_of_reference: str = "absolute",
     w_range: Tuple[int, int] = (10, 30),
     h_range: Tuple[int, int] = (10, 30),
+    theta_range: Tuple[float, float] = (0.0, 2 * math.pi),
     canvas_size: Tuple[int, int] = (224, 224),
     relations: List[Callable[[Entity, Entity], bool]] = [
         left_of,
@@ -60,7 +61,7 @@ def generate_entities(
     while not (entities_in_canvas and entities_in_relation):
         entities = []
         for name in entity_names_copy[:num_entities]:
-            theta = random.uniform(0.0, 2 * math.pi)
+            theta = random.uniform(*theta_range)
             p = (random.uniform(0, canvas_size[0]), random.uniform(0, canvas_size[1]))
             entity = Entity(
                 name=name,
@@ -143,6 +144,36 @@ Questions = List[Tuple[int, int, int]]
 Answers = List[int]
 
 
+def get_mean_and_std(
+    entity_names,
+    relation_names,
+    num_entities,
+    frame_of_reference,
+    w_range,
+    h_range,
+    theta_range,
+):
+    """Get the mean and the std of the specific dataset."""
+    drl_dataset = DRLDataset(
+        entity_names=entity_names,
+        relation_names=relation_names,
+        num_entities=num_entities,
+        frame_of_reference="absolute",
+        w_range=(32, 32),
+        h_range=(32, 32),
+        theta_range=2 * math.pi,
+        num_samples=len(entity_names) * num_entities,  # This is only a rough estimate
+        transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]),
+    )
+    loader = DataLoader(drl_dataset, batch_size=8)
+    channel_values = (
+        torch.stack([img[0] for img, _, _ in loader], dim=0)
+        .permute(1, 0, 2, 3)
+        .reshape(3, -1)
+    )
+    return channel_values.mean(-1), channel_values.std(-1)
+
+
 class DRLDataset(IterableDataset):
     def __init__(
         self,
@@ -150,10 +181,14 @@ class DRLDataset(IterableDataset):
         relation_names,
         num_entities,
         frame_of_reference,
-        num_examples,
+        w_range,
+        h_range,
+        theta_range,
+        num_samples,
         show_bbox=False,
         orientation_marker=False,
-        transform=torchvision.transforms.ToTensor(),
+        transform=None,
+        shuffle=False,
     ):
         super().__init__()
         self.entity_names = entity_names
@@ -162,11 +197,34 @@ class DRLDataset(IterableDataset):
             for relation_name in relation_names
         ]
         self.num_entities = num_entities
+        self.w_range = (32, 32)
+        self.h_range = (32, 32)
         self.frame_of_reference = frame_of_reference
-        self.num_examples = num_examples
+        self.theta_range = (0, 2 * math.pi)
+        self.num_samples = num_samples
         self.show_bbox = show_bbox
         self.orientation_marker = orientation_marker
-        self.transform = transform
+
+        if not transform:
+            self.mean, self.std = get_mean_and_std(
+                entity_names,
+                relation_names,
+                num_entities,
+                frame_of_reference,
+                w_range,
+                h_range,
+                theta_range,
+            )
+            self.transform = torchvision.transforms.Compose(
+                [
+                    torchvision.transforms.ToTensor(),
+                    torchvision.transforms.Normalize(self.mean, self.std),
+                ]
+            )
+        else:
+            self.transform = transform
+
+        self.shuffle = shuffle
 
         self.idx2ent, self.ent2idx = {}, {}
         for idx, entity_name in enumerate(sorted(entity_names)):
@@ -185,27 +243,42 @@ class DRLDataset(IterableDataset):
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:  # single-process data loading, return the full iterator
-            return iter(self.generate_data(worker_id=0, num_examples=self.num_examples))
+            return iter(self.generate_sample(worker_id=0, num_samples=self.num_samples))
         else:
+            worker_id = worker_info.id
+            per_worker = math.ceil(self.num_samples / float(worker_info.num_workers))
             return iter(
-                self.generate_data(
-                    worker_id=worker_info.id,
-                    num_examples=int(
-                        math.ceil(self.num_examples / float(worker_info.num_workers))
+                self.generate_sample(
+                    worker_id=worker_id,
+                    num_samples=int(
+                        min((worker_id + 1) * per_worker, self.num_samples)
+                        - worker_id * per_worker
                     ),
                 )
             )
 
-    def generate_data(self, worker_id, num_examples):
-        for i in range(num_examples):
+    def __len__(self):
+        return self.num_samples
+
+    def generate_sample(self, worker_id, num_samples):
+        for i in range(num_samples):
+            random.seed(i)
+            np.random.seed(i)
+            torch.manual_seed(i)
             if not self.questions.get(worker_id, []):
                 image, questions, answers = self.generate_scene()
-                examples = list(zip(questions, answers))
-                random.shuffle(examples)
-                questions, answers = zip(*examples)
+                qa_pairs = list(zip(questions, answers))
+                random.shuffle(qa_pairs)
+                questions, answers = zip(*qa_pairs)
                 self.image[worker_id] = image
-                self.questions[worker_id] = list(questions)
-                self.answers[worker_id] = list(answers)
+                if self.shuffle:
+                    # For each generated image retrieve only one question-answer
+                    # pair from the shuffled pairs.
+                    self.questions[worker_id] = list(questions)[:1]
+                    self.answers[worker_id] = list(answers)[:1]
+                else:
+                    self.questions[worker_id] = list(questions)
+                    self.answers[worker_id] = list(answers)
             yield (
                 self.transform(self.image[worker_id]),
                 torch.tensor(self.questions[worker_id].pop()),
@@ -218,8 +291,9 @@ class DRLDataset(IterableDataset):
             entity_names=self.entity_names,
             num_entities=self.num_entities,
             frame_of_reference=self.frame_of_reference,
-            w_range=(32, 32),
-            h_range=(32, 32),
+            w_range=self.w_range,
+            h_range=self.h_range,
+            theta_range=self.theta_range,
         )
 
         image = draw_entities(
@@ -248,22 +322,3 @@ class DRLDataset(IterableDataset):
 
         answers = [1] * len(positive_questions) + [0] * len(negative_questions)
         return image, questions, answers
-
-
-def get_mean_and_std(entity_names, relation_names, num_entities, frame_of_reference):
-    """Get the mean and the std of the specific dataset."""
-    drl_dataset = DRLDataset(
-        entity_names=entity_names,
-        relation_names=relation_names,
-        num_entities=num_entities,
-        frame_of_reference="absolute",
-        num_examples=len(entity_names) * num_entities,  # This is only a rough estimate
-        transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]),
-    )
-    loader = DataLoader(drl_dataset, batch_size=8)
-    channel_values = (
-        torch.stack([img[0] for img, _, _ in loader], dim=0)
-        .permute(1, 0, 2, 3)
-        .reshape(3, -1)
-    )
-    return channel_values.mean(-1), channel_values.std(-1)

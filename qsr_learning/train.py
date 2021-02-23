@@ -35,14 +35,6 @@ def step(model, criterion, optimizer, phase, batch, result, device):
         optimizer.step()
 
 
-# def train_epoch(phase, epoch, result, data_loader, model, criterion, optimizer, device):
-#     result.total_loss[phase] = 0
-#     result.num_correct[phase] = 0
-#     for batch in data_loader[phase]:
-#         train_step(model, criterion, optimizer, phase, batch, result, device)
-#     print(epoch, format_result(phase, result, data_loader))
-
-
 def train(config, device):
     phases = ["train", "validation"]
     data = Munch({phase: QSRData(**config.data[phase]) for phase in phases})
