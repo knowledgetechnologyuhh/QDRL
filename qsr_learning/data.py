@@ -189,6 +189,7 @@ class DRLDataset(IterableDataset):
         orientation_marker=False,
         transform=None,
         shuffle=False,
+        random_seed=0,
     ):
         super().__init__()
         self.entity_names = entity_names
@@ -225,6 +226,9 @@ class DRLDataset(IterableDataset):
             self.transform = transform
 
         self.shuffle = shuffle
+        random.seed(random_seed)
+        np.random.seed(random_seed)
+        torch.manual_seed(random_seed)
 
         self.idx2ent, self.ent2idx = {}, {}
         for idx, entity_name in enumerate(sorted(entity_names)):
@@ -262,9 +266,6 @@ class DRLDataset(IterableDataset):
 
     def generate_sample(self, worker_id, num_samples):
         for i in range(num_samples):
-            random.seed(i)
-            np.random.seed(i)
-            torch.manual_seed(i)
             if not self.questions.get(worker_id, []):
                 image, questions, answers = self.generate_scene()
                 qa_pairs = list(zip(questions, answers))
