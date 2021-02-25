@@ -1,5 +1,6 @@
 import math
 import random
+from collections import namedtuple
 from copy import deepcopy
 from itertools import product
 from typing import Callable, Dict, List, Tuple
@@ -14,6 +15,8 @@ from torch.utils.data import DataLoader, IterableDataset
 import qsr_learning
 from qsr_learning.entity import Entity
 from qsr_learning.relation import above, below, left_of, right_of
+
+Question = namedtuple("Question", ["head", "relation", "tail"])
 
 
 def inside_canvas(entity: Entity, canvas_size: Tuple[int, int]) -> bool:
@@ -90,28 +93,28 @@ def generate_questions(entities, relations, size=None):
     :param entities: a list of entities
     :param size: the number of examples to be generated
 
-    :returns: a list of triples (entity1, relation, entity2)
+    :returns: a list of `Question` instances `(head, relation, tail)`
     """
     # Generate positive examples
     positive_questions = []
     negative_questions = []
-    for entity1, entity2 in product(entities[:1], entities):  # FIXME: Remove [:1]
-        if entity1 != entity2:
-            for rel in relations:
-                if rel(entity1, entity2):
+    for head, tail in product(entities, entities):
+        if head != tail:
+            for relation in relations:
+                if relation(head, tail):
                     positive_questions.append(
-                        (
-                            entity1.name,
-                            rel.__name__,
-                            entity2.name,
+                        Question(
+                            head.name,
+                            relation.__name__,
+                            tail.name,
                         )
                     )
                 else:
                     negative_questions.append(
-                        (
-                            entity1.name,
-                            rel.__name__,
-                            entity2.name,
+                        Question(
+                            head.name,
+                            relation.__name__,
+                            tail.name,
                         )
                     )
     return positive_questions, negative_questions
@@ -185,6 +188,7 @@ class DRLDataset(IterableDataset):
         h_range,
         theta_range,
         num_samples,
+        filter_fn=None,
         show_bbox=False,
         orientation_marker=False,
         transform=None,
@@ -204,6 +208,7 @@ class DRLDataset(IterableDataset):
         self.frame_of_reference = frame_of_reference
         self.theta_range = (0, 2 * math.pi)
         self.num_samples = num_samples
+        self.filter_fn = filter_fn
         self.show_bbox = show_bbox
         self.orientation_marker = orientation_marker
 
@@ -251,6 +256,7 @@ class DRLDataset(IterableDataset):
                     worker_id=0,
                     num_samples=self.num_samples,
                     fixed_entities=self.fixed_entities,
+                    filter_fn=self.filter_fn,
                 )
             )
         else:
@@ -264,17 +270,20 @@ class DRLDataset(IterableDataset):
                         - worker_id * per_worker
                     ),
                     fixed_entities=self.fixed_entities,
+                    filter_fn=self.filter_fn,
                 )
             )
 
     def __len__(self):
         return self.num_samples
 
-    def generate_sample(self, worker_id, num_samples, fixed_entities=None):
+    def generate_sample(
+        self, worker_id, num_samples, fixed_entities=None, filter_fn=None
+    ):
         for i in range(num_samples):
             if not self.questions.get(worker_id, []):
                 image, questions, answers = self.generate_scene(
-                    fixed_entities=fixed_entities
+                    fixed_entities=fixed_entities, filter_fn=filter_fn
                 )
                 qa_pairs = list(zip(questions, answers))
                 random.shuffle(qa_pairs)
@@ -294,7 +303,7 @@ class DRLDataset(IterableDataset):
                 torch.tensor(self.answers[worker_id].pop()),
             )
 
-    def generate_scene(self, fixed_entities=None):
+    def generate_scene(self, fixed_entities=None, filter_fn=None):
         """Generate a scene and all questions with their answers.
 
         :param fixed_entities: entities that are predetermined and not randomly generated.
@@ -326,6 +335,10 @@ class DRLDataset(IterableDataset):
         positive_questions, negative_questions = generate_questions(
             entities, self.relations
         )
+
+        if filter_fn:
+            positive_questions = list(filter(filter_fn, positive_questions))
+            negative_questions = list(filter(filter_fn, negative_questions))
 
         def question2idx_tuple(question):
             entity1, relation, entity2 = question
