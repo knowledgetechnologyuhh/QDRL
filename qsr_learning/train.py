@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 from munch import Munch
-from ray import tune
 from torch.utils.data import DataLoader
+from tqdm.auto import trange
 
-from qsr_learning.data.data import QSRData
-from qsr_learning.models.simple_baseline import Net
+from qsr_learning.data import DRLDataset
+from qsr_learning.models import HadarmardFusionNet
 
 
 def report_result(epoch, phases, result, data_loader):
@@ -17,11 +17,26 @@ def report_result(epoch, phases, result, data_loader):
         log[phase + "_accuracy"] = result[phase].num_correct / len(
             data_loader[phase].dataset
         )
-    tune.report(**log)
+    # tune.report(**log)
+    print(
+        f"epoch: {log['epoch']:03d} "
+        + " ".join(f"{key}: {{{key}:3.3f}}" for key in log if key != "epoch").format(
+            **log
+        )
+    )
 
 
-def step(model, criterion, optimizer, phase, batch, result, device):
-    model.train() if phase == "train" else model.eval()
+def step(model, criterion, optimizer, phase, batch, result, freeze, device):
+    if phase == "train":
+        model.train()
+        if freeze == "all":
+            model.image_encoder.eval()
+        if freeze == "bn":  # Common in training object detection models
+            for layer in model.modules():
+                if isinstance(layer, nn.BatchNorm2d):
+                    layer.eval()
+    else:
+        model.eval()
     torch.autograd.set_grad_enabled(phase == "train")
     images, questions, answers = (item.to(device) for item in batch)
     batch_size = images.shape[0]
@@ -37,55 +52,38 @@ def step(model, criterion, optimizer, phase, batch, result, device):
 
 def train(config, device):
     phases = ["train", "validation"]
-    data = Munch({phase: QSRData(**config.data[phase]) for phase in phases})
-    config.model.num_embeddings = len(data.train.word2idx)
+    datasets = Munch({phase: DRLDataset(**config.data[phase]) for phase in phases})
     data_loader = Munch(
         {
             phase: DataLoader(
-                data[phase],
+                datasets[phase],
                 batch_size=config.train.batch_size,
-                shuffle=True,
                 num_workers=4,
             )
             for phase in phases
         }
     )
-    model = Net(config.model)
+
+    model = HadarmardFusionNet(datasets.train, **config.model)
     model.to(device)
     criterion = nn.BCELoss(reduction="sum")
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.train.lr)
     result = Munch()
-    for epoch in range(config.train.num_epochs):
+    for epoch in trange(config.train.num_epochs):
         for phase in phases:
             result[phase] = Munch()
             result[phase].total_loss = 0
             result[phase].num_correct = 0
             for batch in data_loader[phase]:
-                step(model, criterion, optimizer, phase, batch, result, device)
+                step(
+                    model,
+                    criterion,
+                    optimizer,
+                    phase,
+                    batch,
+                    result,
+                    config.train.freeze,
+                    device,
+                )
         report_result(epoch, phases, result, data_loader)
-
-
-# def test(config):
-#     phases = ["test"]
-#     data = Munch({phase: QSRData(**config.data[phase]) for phase in phases})
-#     config.model.num_embeddings = len(data.train.word2idx)
-#     data_loader = Munch(
-#         {
-#             phase: DataLoader(
-#                 data[phase],
-#                 batch_size=config.train.batch_size,
-#                 shuffle=True,
-#                 num_workers=4,
-#             )
-#             for phase in phases
-#         }
-#     )
-#     result = Munch(
-#         total_loss=Munch({phase: 0 for phase in phases}),
-#         num_correct={phase: 0 for phase in phases},
-#     )
-#     for phase in phases:
-#         for batch in data_loader[phase]:
-#             train_step(model, criterion, optimizer, phase, batch, result, device)
-#         print(epoch, format_result(phase, result, data_loader))
-#     print(format_result(["test"], result, data_loader))
+        torch.save(model.state_dict(), "model.pt")

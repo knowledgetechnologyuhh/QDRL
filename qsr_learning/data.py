@@ -95,7 +95,7 @@ def generate_questions(entities, relations, size=None):
     # Generate positive examples
     positive_questions = []
     negative_questions = []
-    for entity1, entity2 in product(entities, entities):
+    for entity1, entity2 in product(entities[:1], entities):  # FIXME: Remove [:1]
         if entity1 != entity2:
             for rel in relations:
                 if rel(entity1, entity2):
@@ -148,20 +148,19 @@ def get_mean_and_std(
     entity_names,
     relation_names,
     num_entities,
-    frame_of_reference,
     w_range,
     h_range,
-    theta_range,
 ):
     """Get the mean and the std of the specific dataset."""
     drl_dataset = DRLDataset(
         entity_names=entity_names,
         relation_names=relation_names,
         num_entities=num_entities,
+        fixed_entities=None,
         frame_of_reference="absolute",
-        w_range=(32, 32),
-        h_range=(32, 32),
-        theta_range=2 * math.pi,
+        w_range=w_range,
+        h_range=h_range,
+        theta_range=(0, 0),
         num_samples=len(entity_names) * num_entities,  # This is only a rough estimate
         transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]),
     )
@@ -180,6 +179,7 @@ class DRLDataset(IterableDataset):
         entity_names,
         relation_names,
         num_entities,
+        fixed_entities,
         frame_of_reference,
         w_range,
         h_range,
@@ -198,6 +198,7 @@ class DRLDataset(IterableDataset):
             for relation_name in relation_names
         ]
         self.num_entities = num_entities
+        self.fixed_entities = fixed_entities  # predefined entites
         self.w_range = (32, 32)
         self.h_range = (32, 32)
         self.frame_of_reference = frame_of_reference
@@ -211,10 +212,8 @@ class DRLDataset(IterableDataset):
                 entity_names,
                 relation_names,
                 num_entities,
-                frame_of_reference,
                 w_range,
                 h_range,
-                theta_range,
             )
             self.transform = torchvision.transforms.Compose(
                 [
@@ -247,7 +246,13 @@ class DRLDataset(IterableDataset):
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:  # single-process data loading, return the full iterator
-            return iter(self.generate_sample(worker_id=0, num_samples=self.num_samples))
+            return iter(
+                self.generate_sample(
+                    worker_id=0,
+                    num_samples=self.num_samples,
+                    fixed_entities=self.fixed_entities,
+                )
+            )
         else:
             worker_id = worker_info.id
             per_worker = math.ceil(self.num_samples / float(worker_info.num_workers))
@@ -258,16 +263,19 @@ class DRLDataset(IterableDataset):
                         min((worker_id + 1) * per_worker, self.num_samples)
                         - worker_id * per_worker
                     ),
+                    fixed_entities=self.fixed_entities,
                 )
             )
 
     def __len__(self):
         return self.num_samples
 
-    def generate_sample(self, worker_id, num_samples):
+    def generate_sample(self, worker_id, num_samples, fixed_entities=None):
         for i in range(num_samples):
             if not self.questions.get(worker_id, []):
-                image, questions, answers = self.generate_scene()
+                image, questions, answers = self.generate_scene(
+                    fixed_entities=fixed_entities
+                )
                 qa_pairs = list(zip(questions, answers))
                 random.shuffle(qa_pairs)
                 questions, answers = zip(*qa_pairs)
@@ -286,8 +294,11 @@ class DRLDataset(IterableDataset):
                 torch.tensor(self.answers[worker_id].pop()),
             )
 
-    def generate_scene(self):
-        """Generate a scene and all questions with their answers."""
+    def generate_scene(self, fixed_entities=None):
+        """Generate a scene and all questions with their answers.
+
+        :param fixed_entities: entities that are predetermined and not randomly generated.
+        """
         entities = generate_entities(
             entity_names=self.entity_names,
             num_entities=self.num_entities,
@@ -296,6 +307,13 @@ class DRLDataset(IterableDataset):
             h_range=self.h_range,
             theta_range=self.theta_range,
         )
+
+        if fixed_entities:
+            fixed_entity_names = [entity.name for entity in fixed_entities]
+            entities = [
+                entity for entity in entities if entity.name not in fixed_entity_names
+            ]
+            entities.extend(fixed_entities)
 
         image = draw_entities(
             entities,
