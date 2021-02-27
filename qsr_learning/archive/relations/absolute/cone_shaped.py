@@ -3,7 +3,6 @@ from munch import Munch
 from qsr_learning.relations.core import overlap
 
 
-# TODO: Explain the meaning of the variables.
 from qsr_learning.relations.core import (
     point_left_of_directed_line,
     point_right_of_directed_line,

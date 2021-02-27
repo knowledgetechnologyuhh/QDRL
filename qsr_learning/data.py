@@ -187,7 +187,7 @@ class DRLDataset(IterableDataset):
         w_range,
         h_range,
         theta_range,
-        num_samples,
+        num_samples,  # FIXME: this parameter does not seem to be processed properly.
         filter_fn=None,
         show_bbox=False,
         orientation_marker=False,

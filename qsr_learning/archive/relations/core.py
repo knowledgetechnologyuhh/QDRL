@@ -2,7 +2,6 @@ import numpy as np
 from munch import Munch
 
 
-# TODO: Explain the logic behind the two functions.
 def point_left_of_directed_line(point, directed_line):
     p = point
     q = directed_line.point
