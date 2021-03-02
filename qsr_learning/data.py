@@ -187,14 +187,17 @@ class DRLDataset(IterableDataset):
         w_range,
         h_range,
         theta_range,
-        num_samples,  # FIXME: this parameter does not seem to be processed properly.
+        num_samples,
         filter_fn=None,
         show_bbox=False,
         orientation_marker=False,
         transform=None,
-        shuffle=False,
+        num_questions_per_image=1,
         random_seed=0,
     ):
+        """
+        :param num_questions_per_image: the (maximal) number of questions generated for each image.
+        """
         super().__init__()
         self.entity_names = entity_names
         self.relations = [
@@ -229,7 +232,7 @@ class DRLDataset(IterableDataset):
         else:
             self.transform = transform
 
-        self.shuffle = shuffle
+        self.num_questions_per_image = num_questions_per_image
         random.seed(random_seed)
         np.random.seed(random_seed)
         torch.manual_seed(random_seed)
@@ -289,14 +292,10 @@ class DRLDataset(IterableDataset):
                 random.shuffle(qa_pairs)
                 questions, answers = zip(*qa_pairs)
                 self.image[worker_id] = image
-                if self.shuffle:
-                    # For each generated image retrieve only one question-answer
-                    # pair from the shuffled pairs.
-                    self.questions[worker_id] = list(questions)[:1]
-                    self.answers[worker_id] = list(answers)[:1]
-                else:
-                    self.questions[worker_id] = list(questions)
-                    self.answers[worker_id] = list(answers)
+                self.questions[worker_id] = list(questions)[
+                    : self.num_questions_per_image
+                ]
+                self.answers[worker_id] = list(answers)[: self.num_questions_per_image]
             yield (
                 self.transform(self.image[worker_id]),
                 torch.tensor(self.questions[worker_id].pop()),
