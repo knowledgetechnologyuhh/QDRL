@@ -78,6 +78,8 @@ def generate_entities(
         entities_in_canvas = all(
             inside_canvas(entity, canvas_size) for entity in entities
         )
+        # TODO: Generate questions and answers already here, as relations are
+        # check here anyways.
         entities_in_relation = all(
             in_relation(entity1, entity2, relations)
             for entity1, entity2 in product(entities, repeat=2)
