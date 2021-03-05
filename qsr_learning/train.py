@@ -50,7 +50,7 @@ def step(model, criterion, optimizer, phase, batch, result, freeze, device):
         optimizer.step()
 
 
-def train(config):
+def train(config, device):
     phases = ["train", "validation"]
     datasets = Munch({phase: DRLDataset(**config.data[phase]) for phase in phases})
     data_loader = Munch(
