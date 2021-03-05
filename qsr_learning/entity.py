@@ -151,10 +151,10 @@ class Entity:
     def draw(
         self,
         base,
-        show_bbox=False,
+        add_bbox=False,
         bbox_fill=None,
         bbox_outline="white",
-        orientation_marker=False,
+        add_front=False,
     ):
         d = ImageDraw.Draw(base)
 
@@ -164,7 +164,7 @@ class Entity:
             (self.bbox[:, 0].min(), base.size[1] - self.bbox[:, 1].max()),
         )
 
-        if show_bbox:
+        if add_bbox:
             vertices = [
                 self.bottom_left,
                 self.top_left,
@@ -177,18 +177,9 @@ class Entity:
                 outline=bbox_outline,
             )
 
-        if orientation_marker:
-            # Use the 1/4 of the bounding box (from the top) for marking the front side of an self.
-            orientation = self.flt_bbox[1] - self.flt_bbox[0]
-            orientation = orientation / np.linalg.norm(orientation)
-            marker_thickness = max(self.size[0] // 8, 4)
-            bottom_left = (
-                (self.flt_bbox[1] - orientation * marker_thickness).round().astype(int)
-            )
-            bottom_right = (
-                (self.flt_bbox[2] - orientation * marker_thickness).round().astype(int)
-            )
-            vertices = [bottom_left, self.top_left, self.top_right, bottom_right]
+        if add_front:
+            # color the top edge with red
+            vertices = [self.top_left, self.top_right]
             d.polygon(
                 [(p[0], base.size[1] - p[1]) for p in vertices],
                 fill=None,
