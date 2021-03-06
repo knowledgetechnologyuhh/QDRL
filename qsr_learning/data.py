@@ -4,6 +4,7 @@ from collections import namedtuple
 from copy import deepcopy
 from typing import Callable, List, Tuple
 
+import numpy as np
 import torch
 import torchvision
 from PIL import Image, ImageDraw
@@ -100,12 +101,13 @@ def get_mean_and_std(
         entity_names=entity_names,
         relation_names=relation_names,
         num_entities=num_entities,
-        fixed_entities=None,
         frame_of_reference="absolute",
         w_range=w_range,
         h_range=h_range,
         theta_range=(0, 0),
-        num_samples=len(entity_names),  # This is only a rough estimate
+        total_size=len(entity_names),  # This is only a rough estimate
+        split=(1, 0, 0),
+        part="train",
         transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]),
     )
     loader = DataLoader(drl_dataset, batch_size=8)
@@ -120,20 +122,21 @@ def get_mean_and_std(
 class DRLDataset(Dataset):
     def __init__(
         self,
-        entity_names,
-        relation_names,
-        num_entities,
-        fixed_entities,
-        frame_of_reference,
-        w_range,
-        h_range,
-        theta_range,
-        num_samples,
+        entity_names=["octopus", "trophy"],
+        relation_names=["above", "below", "left_of", "right_of"],
+        num_entities=2,
+        frame_of_reference="absolute",
+        w_range=(32, 32),
+        h_range=(32, 32),
+        theta_range=(0, 2 * math.pi),
         filter_fn=None,
         add_bbox=False,
         add_front=False,
         transform=None,
         canvas_size=(224, 224),
+        split=(8, 1, 1),
+        total_size=128,
+        part="train",
     ):
         super().__init__()
         self.entity_names = entity_names
@@ -142,12 +145,10 @@ class DRLDataset(Dataset):
             for relation_name in relation_names
         ]
         self.num_entities = num_entities
-        self.fixed_entities = fixed_entities  # predefined entites
         self.w_range = (32, 32)
         self.h_range = (32, 32)
         self.frame_of_reference = frame_of_reference
         self.theta_range = (0, 2 * math.pi)
-        self.num_samples = num_samples
         self.filter_fn = filter_fn
         self.add_bbox = add_bbox
         self.add_front = add_front
@@ -169,6 +170,27 @@ class DRLDataset(Dataset):
         else:
             self.transform = transform
         self.canvas_size = canvas_size
+
+        self.train_size, self.val_size, _ = np.ceil(
+            total_size * np.array(split) / np.array(split).sum()
+        ).astype(np.int64)
+        self.test_size = total_size - self.train_size - self.val_size
+
+        # Different starting index is used as an offset for the random seeds
+        # when generating samples.
+        self.part = part
+        if part == "train":
+            self.num_samples = self.train_size
+            self.start_idx = 0
+        elif part == "validation":
+            self.num_samples = self.val_size
+            self.start_idx = self.train_size
+        elif part == "test":
+            self.num_samples = self.test_size
+            self.start_idx = self.train_size + self.val_size
+        else:
+            ValueError
+
         self.idx2word, self.word2idx = {}, {}
         for idx, word in enumerate(sorted(entity_names + relation_names)):
             self.idx2word[idx] = word
@@ -183,10 +205,9 @@ class DRLDataset(Dataset):
         return self.num_samples
 
     def gen_sample(self, idx):
-        random.seed(idx)
+        random.seed(self.start_idx + idx)
         satisfied = []
         while not satisfied:
-            # TODO: continue here
             entities = generate_entities(
                 self.entity_names,
                 self.num_entities,
