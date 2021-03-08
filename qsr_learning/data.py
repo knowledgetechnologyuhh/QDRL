@@ -4,7 +4,6 @@ from collections import namedtuple
 from copy import deepcopy
 from typing import Callable, List, Tuple
 
-import numpy as np
 import torch
 import torchvision
 from PIL import Image, ImageDraw
@@ -95,6 +94,9 @@ def get_mean_and_std(
     num_entities,
     w_range,
     h_range,
+    add_bbox,
+    add_front,
+    canvas_size,
 ):
     """Get the mean and the std of the specific dataset."""
     drl_dataset = DRLDataset(
@@ -105,10 +107,11 @@ def get_mean_and_std(
         w_range=w_range,
         h_range=h_range,
         theta_range=(0, 0),
-        total_size=len(entity_names),  # This is only a rough estimate
-        split=(1, 0, 0),
-        part="train",
+        add_bbox=add_bbox,
+        add_front=add_front,
         transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]),
+        canvas_size=canvas_size,
+        num_samples=30 * len(entity_names),  # This is only a rough estimate
     )
     loader = DataLoader(drl_dataset, batch_size=8)
     channel_values = (
@@ -129,14 +132,11 @@ class DRLDataset(Dataset):
         w_range=(32, 32),
         h_range=(32, 32),
         theta_range=(0, 2 * math.pi),
-        filter_fn=None,
         add_bbox=False,
         add_front=False,
         transform=None,
         canvas_size=(224, 224),
-        split=(8, 1, 1),
-        total_size=128,
-        part="train",
+        num_samples=128,
     ):
         super().__init__()
         self.entity_names = entity_names
@@ -149,7 +149,6 @@ class DRLDataset(Dataset):
         self.h_range = (32, 32)
         self.frame_of_reference = frame_of_reference
         self.theta_range = (0, 2 * math.pi)
-        self.filter_fn = filter_fn
         self.add_bbox = add_bbox
         self.add_front = add_front
 
@@ -160,6 +159,9 @@ class DRLDataset(Dataset):
                 num_entities,
                 w_range,
                 h_range,
+                add_bbox,
+                add_front,
+                canvas_size,
             )
             self.transform = torchvision.transforms.Compose(
                 [
@@ -170,26 +172,7 @@ class DRLDataset(Dataset):
         else:
             self.transform = transform
         self.canvas_size = canvas_size
-
-        self.train_size, self.val_size, _ = np.ceil(
-            total_size * np.array(split) / np.array(split).sum()
-        ).astype(np.int64)
-        self.test_size = total_size - self.train_size - self.val_size
-
-        # Different starting index is used as an offset for the random seeds
-        # when generating samples.
-        self.part = part
-        if part == "train":
-            self.num_samples = self.train_size
-            self.start_idx = 0
-        elif part == "validation":
-            self.num_samples = self.val_size
-            self.start_idx = self.train_size
-        elif part == "test":
-            self.num_samples = self.test_size
-            self.start_idx = self.train_size + self.val_size
-        else:
-            ValueError
+        self.num_samples = num_samples
 
         self.idx2word, self.word2idx = {}, {}
         for idx, word in enumerate(sorted(entity_names + relation_names)):
@@ -205,7 +188,7 @@ class DRLDataset(Dataset):
         return self.num_samples
 
     def gen_sample(self, idx):
-        random.seed(self.start_idx + idx)
+        random.seed(idx)
         satisfied = []
         while not satisfied:
             entities = generate_entities(
@@ -239,6 +222,6 @@ class DRLDataset(Dataset):
         question = Question(head.name, relation.__name__, tail.name)
         return (
             self.transform(image),
-            torch.tensor([self.word2idx[w] for w in question], dtype=torch.int64),
-            torch.tensor(answer),
+            torch.tensor([self.word2idx[w] for w in question], dtype=torch.long),
+            torch.tensor(answer, dtype=torch.float),
         )

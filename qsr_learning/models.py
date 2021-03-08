@@ -1,12 +1,11 @@
 from copy import deepcopy
+from typing import Tuple
 
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torchvision
-from sklearn.metrics import accuracy_score
-
-from typing import Tuple
+from pytorch_lightning.metrics import Accuracy
 
 
 class ImageModule(nn.Module):
@@ -30,17 +29,12 @@ class ImageModule(nn.Module):
             param.requires_grad = False
 
         self.image_size = image_size
-        self.output_size = output_size
-        # Compute the size of image featutres
-        image = torch.rand(
-            (1, *self.image_size),
-            device=list(set(p.device for p in self.parameters()))[0],
-        )
-        with torch.no_grad():
-            _, c_in, h_in, w_in = self.image_encoder(image).shape
-
+        c, h, w = self.image_encoder_output_size
         self.image_module = nn.Sequential(
-            nn.Conv2d(c_in, output_size, (h_in, w_in)),
+            nn.Conv2d(c, output_size, (h, w)),
+            nn.BatchNorm2d(output_size),
+            nn.ReLU(),
+            nn.Conv2d(output_size, output_size, 1),
             nn.BatchNorm2d(output_size),
             nn.ReLU(),
         )
@@ -52,6 +46,16 @@ class ImageModule(nn.Module):
         out = out.view(batch_size, -1)
         return out
 
+    @property
+    def image_encoder_output_size(self):
+        image = torch.rand(
+            (1, *self.image_size),
+            device=list(set(p.device for p in self.parameters()))[0],
+        )
+        with torch.no_grad():
+            _, c, h, w = self.image_encoder(image).shape
+        return c, h, w
+
 
 class QuestionModule(nn.Module):
     def __init__(
@@ -59,28 +63,32 @@ class QuestionModule(nn.Module):
         num_embeddings: int,
         embedding_dim: int,
         question_len: int,
-        output_size: int,
+        # output_size: int,
     ):
         super().__init__()
+        self.num_embeddings = num_embeddings
         self.embedding = nn.Embedding(num_embeddings, embedding_dim)
         self.question_len = question_len
-
-        question = torch.randint(
-            0,
-            num_embeddings,
-            (1, question_len),
-            dtype=torch.int64,
-            device=list(set(p.device for p in self.parameters()))[0],
-        )
-        with torch.no_grad():
-            input_size = self.embedding(question).shape.numel()
-        self.fc = nn.Linear(input_size, output_size)
+        # self.fc = nn.Linear(input_size, output_size)
 
     def forward(self, question):
         batch_size = question.shape[0]
         out = self.embedding(question)
         out = out.view(batch_size, -1)
-        out = self.fc(out)
+        # out = self.fc(out)
+        return out
+
+    @property
+    def embedding_output_size(self):
+        question = torch.randint(
+            0,
+            self.num_embeddings,
+            (1, self.question_len),
+            dtype=torch.int64,
+            device=list(set(p.device for p in self.parameters()))[0],
+        )
+        with torch.no_grad():
+            out = self.embedding(question).shape.numel()
         return out
 
 
@@ -94,40 +102,54 @@ class DRLNet(pl.LightningModule):
         question_len: int,
     ):
         super().__init__()
-        image_feature_size = question_feature_size = 32
-
-        # Image Module
-        self.image_module = ImageModule(vision_model, image_size, image_feature_size)
-
         # Question module
         self.question_module = QuestionModule(
-            num_embeddings, embedding_dim, question_len, question_feature_size
+            num_embeddings, embedding_dim, question_len
         )
-        self.fc = nn.Linear(image_feature_size, 1)
-        self.criterion = nn.BCELoss()
+        # Image Module
+        image_feature_size = self.question_module.embedding_output_size
+        self.image_module = ImageModule(vision_model, image_size, image_feature_size)
+
+        self.criterion = nn.BCEWithLogitsLoss()
+        self.metric = Accuracy()
 
     def forward(self, images, questions):
         image_features = self.image_module(images)
         question_features = self.question_module(questions)
         # Fusion
-        out = image_features * question_features
-        out = self.fc(out)
-        out = out.view(-1).sigmoid()
+        out = (image_features * question_features).sum(-1)
+        out = out.view(-1)
         return out
 
     def training_step(self, batch, batch_idx):
-        self.image_encoder.eval()
-
+        self.image_module.image_encoder.eval()
         # Make prediction
         images, questions, answers = batch
-        preds = self(images, questions)
-        loss = self.criterion(preds, answers)
+        out = self(images, questions)
+        loss = self.criterion(out, answers)
 
         # Logging
-        self.log("train_loss", loss)
-        self.log("train_accuracy", accuracy_score(answers, preds))
+        self.log("train_loss", loss, prog_bar=True)
+        self.log(
+            "train_accuracy",
+            self.metric(out.sigmoid(), answers.long()),
+            prog_bar=True,
+        )
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        # Make prediction
+        images, questions, answers = batch
+        out = self(images, questions)
+        loss = self.criterion(out, answers)
+        # Logging
+        self.log("validation_loss", loss, prog_bar=True)
+        self.log(
+            "validation_accuracy",
+            self.metric(out.sigmoid(), answers.long()),
+            prog_bar=True,
+        )
 
     def configure_optimizers(self):
         # Make sure to filter the parameters based on `requires_grad`
-        return torch.optim.Adam(filter(lambda p: p.requires_grad, self.parameters))
+        return torch.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()))
