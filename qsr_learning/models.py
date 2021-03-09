@@ -69,17 +69,21 @@ class QuestionModule(nn.Module):
         self.num_embeddings = num_embeddings
         self.embedding = nn.Embedding(num_embeddings, embedding_dim)
         self.question_len = question_len
-        # self.fc = nn.Linear(input_size, output_size)
+        self.gru = nn.GRU(
+            input_size=embedding_dim,
+            hidden_size=embedding_dim,
+            batch_first=True,
+            bidirectional=False,
+        )
 
     def forward(self, question):
-        batch_size = question.shape[0]
         out = self.embedding(question)
-        out = out.view(batch_size, -1)
-        # out = self.fc(out)
-        return out
+        _, hidden = self.gru(out)
+        out = hidden.squeeze(0)
+        return hidden
 
     @property
-    def embedding_output_size(self):
+    def output_size(self):
         question = torch.randint(
             0,
             self.num_embeddings,
@@ -88,7 +92,7 @@ class QuestionModule(nn.Module):
             device=list(set(p.device for p in self.parameters()))[0],
         )
         with torch.no_grad():
-            out = self.embedding(question).shape.numel()
+            out = self(question).shape.numel()
         return out
 
 
@@ -107,7 +111,7 @@ class DRLNet(pl.LightningModule):
             num_embeddings, embedding_dim, question_len
         )
         # Image Module
-        image_feature_size = self.question_module.embedding_output_size
+        image_feature_size = self.question_module.output_size
         self.image_module = ImageModule(vision_model, image_size, image_feature_size)
 
         self.criterion = nn.BCEWithLogitsLoss()
