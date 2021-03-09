@@ -3,5 +3,5 @@
 __pycache__/
 .vscode/
 *.pt
-/notebooks/experiments/logs/
-/notebooks/experiments/lightning_logs/
+lightning_logs/
+
