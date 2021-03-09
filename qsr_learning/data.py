@@ -111,7 +111,7 @@ def get_mean_and_std(
         add_front=add_front,
         transform=torchvision.transforms.Compose([torchvision.transforms.ToTensor()]),
         canvas_size=canvas_size,
-        num_samples=30 * len(entity_names),  # This is only a rough estimate
+        num_samples=len(entity_names),  # This is only a rough estimate
     )
     loader = DataLoader(drl_dataset, batch_size=8)
     channel_values = (
@@ -189,10 +189,16 @@ class DRLDataset(Dataset):
 
     def gen_sample(self, idx):
         random.seed(idx)
-        satisfied = []
-        while not satisfied:
+        entity_names = random.sample(self.entity_names, self.num_entities)
+        head_name, tail_name = random.sample(entity_names, 2)
+        # head_name = "octopus"
+        # tail_name = "trophy"
+        relation = random.choice(self.relations)
+        answer = random.randint(0, 1)
+        sample_found = False
+        while not sample_found:
             entities = generate_entities(
-                self.entity_names,
+                entity_names,
                 self.num_entities,
                 self.frame_of_reference,
                 w_range=self.w_range,
@@ -201,15 +207,15 @@ class DRLDataset(Dataset):
                 canvas_size=self.canvas_size,
                 relations=self.relations,
             )
-            head, tail = random.sample(entities, 2)
-            answer = random.randint(0, 1)
-            indices = list(range(len(self.relations)))
-            random.shuffle(indices)
-            satisfied = [
-                self.relations[i] for i in indices if self.relations[i](head, tail)
-            ]
-        dissatisified = list(set(self.relations) - set(satisfied))
-        relation = random.choice(satisfied) if answer else random.choice(dissatisified)
+            for entity in entities:
+                if entity.name == head_name:
+                    head = entity
+                elif entity.name == tail_name:
+                    tail = entity
+                else:
+                    raise ValueError
+            if any(r(head, tail) for r in [above, below, left_of, right_of]):
+                sample_found = relation(head, tail) == answer
         image = draw_entities(
             entities,
             canvas_size=self.canvas_size,
