@@ -106,6 +106,8 @@ class DRLNet(pl.LightningModule):
         question_len: int,
     ):
         super().__init__()
+        self.save_hyperparameters()
+
         # Question module
         self.question_module = QuestionModule(
             num_embeddings, embedding_dim, question_len
