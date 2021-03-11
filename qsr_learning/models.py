@@ -31,10 +31,10 @@ class VisionModule(nn.Module):
         self.image_size = image_size
         c, h, w = self.image_encoder_output_size
         self.vision_module = nn.Sequential(
-            nn.Conv2d(c, output_size, (h, w)),
-            nn.BatchNorm2d(output_size),
+            nn.Conv2d(c, c, (3, 3), padding=1),
+            nn.BatchNorm2d(c),
             nn.ReLU(),
-            nn.Conv2d(output_size, output_size, 1),
+            nn.Conv2d(c, output_size, (h, w)),
             nn.BatchNorm2d(output_size),
             nn.ReLU(),
             nn.Conv2d(output_size, output_size, 1),
