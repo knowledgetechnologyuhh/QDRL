@@ -8,7 +8,7 @@ import torchvision
 from pytorch_lightning.metrics import Accuracy
 
 
-class ImageModule(nn.Module):
+class VisionModule(nn.Module):
     def __init__(
         self, vision_model: str, image_size: Tuple[int, int, int], output_size: int
     ):
@@ -30,7 +30,7 @@ class ImageModule(nn.Module):
 
         self.image_size = image_size
         c, h, w = self.image_encoder_output_size
-        self.image_module = nn.Sequential(
+        self.vision_module = nn.Sequential(
             nn.Conv2d(c, output_size, (h, w)),
             nn.BatchNorm2d(output_size),
             nn.ReLU(),
@@ -42,7 +42,7 @@ class ImageModule(nn.Module):
     def forward(self, image):
         batch_size = image.shape[0]
         image_features = self.image_encoder(image)
-        out = self.image_module(image_features)
+        out = self.vision_module(image_features)
         out = out.view(batch_size, -1)
         return out
 
@@ -56,8 +56,18 @@ class ImageModule(nn.Module):
             _, c, h, w = self.image_encoder(image).shape
         return c, h, w
 
+    @property
+    def output_size(self):
+        image = torch.rand(
+            (2, *self.image_size),  # batchnorm requires batch_size > 1
+            device=list(set(p.device for p in self.parameters()))[0],
+        )
+        with torch.no_grad():
+            out = self(image).shape[1:].numel()
+        return out
 
-class QuestionModule(nn.Module):
+
+class LanguageModule(nn.Module):
     def __init__(
         self,
         num_embeddings: int,
@@ -96,6 +106,16 @@ class QuestionModule(nn.Module):
         return out
 
 
+class FusionModule(nn.Module):
+    def __init__(self, image_feature_size, question_feature_size):
+        super().__init__()
+
+    def forward(self, image_features: torch.Tensor, question_features: torch.Tensor):
+        out = (image_features * question_features).sum(-1)
+        out = out.view(-1)
+        return out
+
+
 class DRLNet(pl.LightningModule):
     def __init__(
         self,
@@ -109,26 +129,27 @@ class DRLNet(pl.LightningModule):
         self.save_hyperparameters()
 
         # Question module
-        self.question_module = QuestionModule(
+        self.language_module = LanguageModule(
             num_embeddings, embedding_dim, question_len
         )
         # Image Module
-        image_feature_size = self.question_module.output_size
-        self.image_module = ImageModule(vision_model, image_size, image_feature_size)
+        image_feature_size = self.language_module.output_size
+        self.vision_module = VisionModule(vision_model, image_size, image_feature_size)
+        self.fusion_module = FusionModule(
+            self.vision_module.output_size, self.language_module.output_size
+        )
 
         self.criterion = nn.BCEWithLogitsLoss()
         self.metric = Accuracy()
 
     def forward(self, images, questions):
-        image_features = self.image_module(images)
-        question_features = self.question_module(questions)
-        # Fusion
-        out = (image_features * question_features).sum(-1)
-        out = out.view(-1)
+        image_features = self.vision_module(images)
+        question_features = self.language_module(questions)
+        out = self.fusion_module(image_features, question_features)
         return out
 
     def training_step(self, batch, batch_idx):
-        self.image_module.image_encoder.eval()
+        self.vision_module.image_encoder.eval()
         # Make prediction
         images, questions, answers = batch
         out = self(images, questions)
