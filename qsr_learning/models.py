@@ -34,9 +34,12 @@ class VisionModule(nn.Module):
             nn.Conv2d(c, output_size, (h, w)),
             nn.BatchNorm2d(output_size),
             nn.ReLU(),
-            # nn.Conv2d(output_size, output_size, 1),
-            # nn.BatchNorm2d(output_size),
-            # nn.ReLU(),
+            nn.Conv2d(output_size, output_size, 1),
+            nn.BatchNorm2d(output_size),
+            nn.ReLU(),
+            nn.Conv2d(output_size, output_size, 1),
+            nn.BatchNorm2d(output_size),
+            nn.ReLU(),
         )
 
     def forward(self, image):
