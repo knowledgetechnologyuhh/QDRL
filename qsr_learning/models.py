@@ -115,21 +115,25 @@ class LanguageModule(nn.Module):
 class FusionModule(nn.Module):
     def __init__(self, image_feature_size, question_feature_size):
         super().__init__()
-        self.fc1 = nn.Linear(
-            image_feature_size + question_feature_size,
-            image_feature_size + question_feature_size,
+        self.fusion_module = nn.Sequential(
+            nn.Linear(
+                image_feature_size + question_feature_size,
+                image_feature_size + question_feature_size,
+            ),
+            nn.BatchNorm1d(image_feature_size + question_feature_size),
+            nn.ReLU(),
+            nn.Linear(
+                image_feature_size + question_feature_size,
+                image_feature_size + question_feature_size,
+            ),
+            nn.BatchNorm1d(image_feature_size + question_feature_size),
+            nn.ReLU(),
+            nn.Linear(image_feature_size + question_feature_size, 1),
         )
-        self.fc2 = nn.Linear(
-            image_feature_size + question_feature_size,
-            image_feature_size + question_feature_size,
-        )
-        self.fc3 = nn.Linear(image_feature_size + question_feature_size, 1)
 
     def forward(self, image_features: torch.Tensor, question_features: torch.Tensor):
         out = torch.cat((image_features, question_features), dim=-1)
-        out = self.fc1(out).relu()
-        out = self.fc2(out).relu()
-        out = self.fc3(out)
+        out = self.fusion_module(out)
         out = out.view(-1)
         return out
 
