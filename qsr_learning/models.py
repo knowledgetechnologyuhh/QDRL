@@ -96,7 +96,7 @@ class LanguageModule(nn.Module):
         out = self.embedding(question)
         _, hidden = self.gru(out)
         out = hidden.squeeze(0)
-        return hidden
+        return out
 
     @property
     def output_size(self):
@@ -115,9 +115,21 @@ class LanguageModule(nn.Module):
 class FusionModule(nn.Module):
     def __init__(self, image_feature_size, question_feature_size):
         super().__init__()
+        self.fc1 = nn.Linear(
+            image_feature_size + question_feature_size,
+            image_feature_size + question_feature_size,
+        )
+        self.fc2 = nn.Linear(
+            image_feature_size + question_feature_size,
+            image_feature_size + question_feature_size,
+        )
+        self.fc3 = nn.Linear(image_feature_size + question_feature_size, 1)
 
     def forward(self, image_features: torch.Tensor, question_features: torch.Tensor):
-        out = (image_features * question_features).sum(-1)
+        out = torch.cat((image_features, question_features), dim=-1)
+        out = self.fc1(out)
+        out = self.fc2(out)
+        out = self.fc3(out)
         out = out.view(-1)
         return out
 
