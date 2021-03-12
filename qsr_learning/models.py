@@ -127,8 +127,8 @@ class FusionModule(nn.Module):
 
     def forward(self, image_features: torch.Tensor, question_features: torch.Tensor):
         out = torch.cat((image_features, question_features), dim=-1)
-        out = self.fc1(out)
-        out = self.fc2(out)
+        out = self.fc1(out).relu()
+        out = self.fc2(out).relu()
         out = self.fc3(out)
         out = out.view(-1)
         return out
