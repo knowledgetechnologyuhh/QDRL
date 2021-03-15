@@ -2,12 +2,16 @@ import math
 import random
 from collections import namedtuple
 from copy import deepcopy
+from pathlib import Path
 from typing import Callable, List, Tuple
 
+import h5py
+import numpy as np
 import torch
 import torchvision
 from PIL import Image, ImageDraw
 from torch.utils.data import DataLoader, Dataset
+from tqdm.auto import trange
 
 import qsr_learning
 from qsr_learning.entity import Entity
@@ -137,6 +141,8 @@ class DRLDataset(Dataset):
         transform=None,
         canvas_size=(224, 224),
         num_samples=128,
+        from_storage=False,
+        storage_dir="data/",
     ):
         super().__init__()
         self.entity_names = entity_names
@@ -179,10 +185,39 @@ class DRLDataset(Dataset):
             self.idx2word[idx] = word
             self.word2idx[word] = idx
 
+        # self.from_storage = from_storage
+        # if from_storage:
+        #     self.hdf5_dir = Path(storage_dir)
+        #     self.hdf5_dir.mkdir(parents=True, exist_ok=True)
+        #     # TODO: continue here
+        #     images = np.array([])
+        #     questions = np.array([])
+        #     for i in trange(len(self)):
+        #         image, question, answer = self[i]
+
+        #     num_images = len(images)
+
+        #     # Create a new HDF5 file
+        #     file = h5py.File(self.hdf5_dir / "tmp.h5", "w")
+
+        #     # Create a dataset in the file
+        #     file.create_dataset(
+        #         "images", np.shape(images), h5py.h5t.STD_U8BE, data=images
+        #     )
+        #     file.create_dataset(
+        #         "meta", np.shape(labels), h5py.h5t.STD_U8BE, data=labels
+        #     )
+        #     file.close()
+
     def __getitem__(self, idx):
         if idx < 0 or idx >= len(self):
             raise IndexError("sample index out of range")
-        return self.gen_sample(idx)
+        image, question, answer = self.gen_sample(idx)
+        return (
+            self.transform(image),
+            torch.tensor([self.word2idx[w] for w in question], dtype=torch.long),
+            torch.tensor(answer, dtype=torch.float),
+        )
 
     def __len__(self):
         return self.num_samples
@@ -226,8 +261,4 @@ class DRLDataset(Dataset):
         image = Image.alpha_composite(background, image).convert("RGB")
 
         question = Question(head.name, relation.__name__, tail.name)
-        return (
-            self.transform(image),
-            torch.tensor([self.word2idx[w] for w in question], dtype=torch.long),
-            torch.tensor(answer, dtype=torch.float),
-        )
+        return image, question, answer
