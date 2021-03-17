@@ -2,16 +2,12 @@ import math
 import random
 from collections import namedtuple
 from copy import deepcopy
-from pathlib import Path
 from typing import Callable, List, Tuple
 
-import h5py
-import numpy as np
 import torch
 import torchvision
 from PIL import Image, ImageDraw
 from torch.utils.data import DataLoader, Dataset
-from tqdm.auto import trange
 
 import qsr_learning
 from qsr_learning.entity import Entity
@@ -130,6 +126,7 @@ class DRLDataset(Dataset):
     def __init__(
         self,
         entity_names=["octopus", "trophy"],
+        excluded_combinations=[],
         relation_names=["above", "below", "left_of", "right_of"],
         num_entities=2,
         frame_of_reference="absolute",
@@ -141,11 +138,13 @@ class DRLDataset(Dataset):
         transform=None,
         canvas_size=(224, 224),
         num_samples=128,
+        root_seed=0,
         from_storage=False,
         storage_dir="data/",
     ):
         super().__init__()
         self.entity_names = entity_names
+        self.excluded_combinations = excluded_combinations
         self.relations = [
             getattr(qsr_learning.relation, relation_name)
             for relation_name in relation_names
@@ -185,6 +184,7 @@ class DRLDataset(Dataset):
             self.idx2word[idx] = word
             self.word2idx[word] = idx
 
+        self.root_seed = root_seed
         # self.from_storage = from_storage
         # if from_storage:
         #     self.hdf5_dir = Path(storage_dir)
@@ -223,11 +223,19 @@ class DRLDataset(Dataset):
         return self.num_samples
 
     def gen_sample(self, idx):
-        random.seed(idx)
-        entity_names = random.sample(self.entity_names, self.num_entities)
-        head_name, tail_name = random.sample(entity_names, 2)
-        # head_name = "octopus"
-        # tail_name = "trophy"
+        random.seed(self.root_seed + idx)
+        pair_found = False
+        while not pair_found:
+            entity_names = random.sample(self.entity_names, self.num_entities)
+            head_name, tail_name = random.sample(entity_names, 2)
+            pair_excluded = ((head_name, tail_name) in self.excluded_combinations) or (
+                (
+                    tail_name,
+                    head_name,
+                )
+                in self.excluded_combinations
+            )
+            pair_found = not pair_excluded
         relation = random.choice(self.relations)
         answer = random.randint(0, 1)
         sample_found = False
