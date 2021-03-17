@@ -248,7 +248,7 @@ class DRLDataset(Dataset):
                 elif entity.name == tail_name:
                     tail = entity
                 else:
-                    raise ValueError
+                    pass
             if any(r(head, tail) for r in [above, below, left_of, right_of]):
                 sample_found = relation(head, tail) == answer
         image = draw_entities(
