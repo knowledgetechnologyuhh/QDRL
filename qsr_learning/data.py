@@ -153,7 +153,7 @@ class DRLDataset(Dataset):
         self.w_range = (32, 32)
         self.h_range = (32, 32)
         self.frame_of_reference = frame_of_reference
-        self.theta_range = (0, 2 * math.pi)
+        self.theta_range = theta_range
         self.add_bbox = add_bbox
         self.add_front = add_front
 
