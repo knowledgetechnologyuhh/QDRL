@@ -6,7 +6,7 @@ from typing import Callable, List, Tuple
 
 import torch
 import torchvision
-from PIL import Image, ImageDraw
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
 import qsr_learning
@@ -72,17 +72,17 @@ def generate_entities(
 
 def draw_entities(entities, canvas_size=(224, 224), add_bbox=True, add_front=False):
     canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 255))
-    d = ImageDraw.Draw(canvas)
-    d.polygon(
-        [
-            (0, 0),
-            (0, canvas_size[1] - 1),
-            (canvas_size[0] - 1, canvas_size[1] - 1),
-            (canvas_size[0] - 1, 0),
-        ],
-        fill=None,
-        outline="white",
-    )
+    # d = ImageDraw.Draw(canvas)
+    # d.polygon(
+    #     [
+    #         (0, 0),
+    #         (0, canvas_size[1] - 1),
+    #         (canvas_size[0] - 1, canvas_size[1] - 1),
+    #         (canvas_size[0] - 1, 0),
+    #     ],
+    #     fill=None,
+    #     outline="white",
+    # )
     for entity in entities:
         entity.draw(canvas, add_bbox=add_bbox, add_front=add_front)
     return canvas
