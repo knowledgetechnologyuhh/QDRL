@@ -151,8 +151,8 @@ class DRLDataset(Dataset):
             for relation_name in relation_names
         ]
         self.num_entities = num_entities
-        self.w_range = (32, 32)
-        self.h_range = (32, 32)
+        self.w_range = w_range
+        self.h_range = h_range
         self.frame_of_reference = frame_of_reference
         self.theta_range = theta_range
         self.add_bbox = add_bbox
