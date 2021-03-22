@@ -200,7 +200,7 @@ class DRLNet(pl.LightningModule):
         )
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, *args, **kwargs):
         # Make prediction
         images, questions, answers = batch
         out = self(images, questions)
