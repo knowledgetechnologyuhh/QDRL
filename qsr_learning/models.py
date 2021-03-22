@@ -10,7 +10,12 @@ from pytorch_lightning.metrics import Accuracy
 
 class VisionModule(nn.Module):
     def __init__(
-        self, vision_model: str, image_size: Tuple[int, int, int], output_size: int
+        self,
+        vision_model: str,
+        image_size: Tuple[int, int, int],
+        output_size: int,
+        pretrained: str = True,
+        freeze_image_encoder: str = True,
     ):
         """Process the image.
 
@@ -21,12 +26,13 @@ class VisionModule(nn.Module):
         super().__init__()
 
         # Image encoder
-        resnet = getattr(torchvision.models, vision_model)(pretrained=True)
+        resnet = getattr(torchvision.models, vision_model)(pretrained=pretrained)
         self.image_encoder = nn.Sequential(*deepcopy(list(resnet.children())[:-3]))
         del resnet
         # Freeze the image encoder weights
-        for param in self.image_encoder.parameters():
-            param.requires_grad = False
+        if freeze_image_encoder:
+            for param in self.image_encoder.parameters():
+                param.requires_grad = False
 
         self.image_size = image_size
         c, h, w = self.image_encoder_output_size
@@ -146,17 +152,24 @@ class DRLNet(pl.LightningModule):
         num_embeddings: int,
         embedding_dim: int,
         question_len: int,
+        image_encoder_pretrained: bool = True,
+        freeze_image_encoder: bool = True,
     ):
         super().__init__()
         self.save_hyperparameters()
 
-        # Question module
         self.language_module = LanguageModule(
             num_embeddings, embedding_dim, question_len
         )
-        # Image Module
         image_feature_size = self.language_module.output_size
-        self.vision_module = VisionModule(vision_model, image_size, image_feature_size)
+        self.vision_module = VisionModule(
+            vision_model,
+            image_size,
+            image_feature_size,
+            image_encoder_pretrained,
+            freeze_image_encoder,
+        )
+        self.freeze_image_encoder = freeze_image_encoder
         self.fusion_module = FusionModule(
             self.vision_module.output_size, self.language_module.output_size
         )
@@ -171,7 +184,8 @@ class DRLNet(pl.LightningModule):
         return out
 
     def training_step(self, batch, batch_idx):
-        self.vision_module.image_encoder.eval()
+        if self.freeze_image_encoder:
+            self.vision_module.image_encoder.eval()
         # Make prediction
         images, questions, answers = batch
         out = self(images, questions)
