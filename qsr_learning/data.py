@@ -2,6 +2,7 @@ import math
 import random
 from collections import namedtuple
 from copy import deepcopy
+from itertools import combinations
 from typing import Callable, List, Tuple
 
 import torch
@@ -126,7 +127,7 @@ class DRLDataset(Dataset):
     def __init__(
         self,
         entity_names=["octopus", "trophy"],
-        excluded_combinations=[],
+        excluded_entities=[],
         relation_names=["above", "below", "left_of", "right_of"],
         num_entities=2,
         frame_of_reference="absolute",
@@ -144,7 +145,7 @@ class DRLDataset(Dataset):
     ):
         super().__init__()
         self.entity_names = entity_names
-        self.excluded_combinations = excluded_combinations
+        self.excluded_pairs = set(combinations(excluded_entities, 2))
         self.relations = [
             getattr(qsr_learning.relation, relation_name)
             for relation_name in relation_names
@@ -228,12 +229,12 @@ class DRLDataset(Dataset):
         while not pair_found:
             entity_names = random.sample(self.entity_names, self.num_entities)
             head_name, tail_name = random.sample(entity_names, 2)
-            pair_excluded = ((head_name, tail_name) in self.excluded_combinations) or (
+            pair_excluded = ((head_name, tail_name) in self.excluded_pairs) or (
                 (
                     tail_name,
                     head_name,
                 )
-                in self.excluded_combinations
+                in self.excluded_pairs
             )
             pair_found = not pair_excluded
         relation = random.choice(self.relations)
