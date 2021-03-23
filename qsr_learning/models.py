@@ -139,6 +139,7 @@ class DRLNet(pl.LightningModule):
         question_len: int,
         image_encoder_pretrained: bool = True,
         freeze_image_encoder: bool = True,
+        lr=0.001,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -158,6 +159,7 @@ class DRLNet(pl.LightningModule):
         self.fusion_module = FusionModule(
             self.vision_module.output_size, self.language_module.output_size
         )
+        self.lr = lr
 
         self.criterion = nn.BCEWithLogitsLoss()
         self.metric = Accuracy()
@@ -200,4 +202,6 @@ class DRLNet(pl.LightningModule):
 
     def configure_optimizers(self):
         # Make sure to filter the parameters based on `requires_grad`
-        return torch.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()))
+        return torch.optim.Adam(
+            filter(lambda p: p.requires_grad, self.parameters()), lr=self.lr
+        )

@@ -143,6 +143,7 @@ config.model = Munch(
     question_len=train_dataset[0][1].shape.numel(),
     image_encoder_pretrained=False,
     freeze_image_encoder=False,
+    lr=0.001,
 )
 model = DRLNet(**config.model)
 
@@ -167,5 +168,3 @@ trainer = pl.Trainer(**{**config.trainer, **dict(logger=tb_logger)})
 trainer.fit(
     model, train_loader, [validation_loader_standard, validation_loader_compositional]
 )
-
-# %%
