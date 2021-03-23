@@ -124,7 +124,7 @@ validation_dataset_compositional = DRLDataset(
 config.data_loader = Munch(
     batch_size=64,
     shuffle=True,
-    num_workers=4,
+    num_workers=8,
     pin_memory=True,
 )
 train_loader = DataLoader(train_dataset, **config.data_loader)
@@ -150,12 +150,13 @@ repo = git.Repo(Path(".").absolute(), search_parent_directories=True)
 if repo.is_dirty():
     raise RepositoryDirtyError(repo, "Have you forgotten to commit the changes?")
 sha = repo.head.object.hexsha
+
 ROOT = Path(repo.working_tree_dir)
 tb_logger = loggers.TensorBoardLogger(
     save_dir=ROOT / "lightning_logs", name="", version=sha
 )
 config.trainer = Munch(
-    gpus=1,
+    gpus=[0],
     max_epochs=10,
     precision=32,
     limit_train_batches=1.0,
