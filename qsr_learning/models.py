@@ -14,8 +14,8 @@ class VisionModule(nn.Module):
         vision_model: str,
         image_size: Tuple[int, int, int],
         output_size: int,
-        pretrained: str = True,
-        freeze_image_encoder: str = True,
+        pretrained: bool = True,
+        freeze_image_encoder: bool = True,
     ):
         """Process the image.
 
@@ -37,16 +37,7 @@ class VisionModule(nn.Module):
         self.image_size = image_size
         c, h, w = self.image_encoder_output_size
         self.vision_module = nn.Sequential(
-            nn.Conv2d(c, c, (3, 3), padding=1),
-            nn.BatchNorm2d(c),
-            nn.ReLU(),
-            nn.Conv2d(c, c, (3, 3), padding=1),
-            nn.BatchNorm2d(c),
-            nn.ReLU(),
             nn.Conv2d(c, output_size, (h, w)),
-            nn.BatchNorm2d(output_size),
-            nn.ReLU(),
-            nn.Conv2d(output_size, output_size, 1),
             nn.BatchNorm2d(output_size),
             nn.ReLU(),
         )
@@ -128,12 +119,6 @@ class FusionModule(nn.Module):
             ),
             nn.BatchNorm1d(image_feature_size + question_feature_size),
             nn.ReLU(),
-            nn.Linear(
-                image_feature_size + question_feature_size,
-                image_feature_size + question_feature_size,
-            ),
-            nn.BatchNorm1d(image_feature_size + question_feature_size),
-            nn.ReLU(),
             nn.Linear(image_feature_size + question_feature_size, 1),
         )
 
@@ -161,11 +146,11 @@ class DRLNet(pl.LightningModule):
         self.language_module = LanguageModule(
             num_embeddings, embedding_dim, question_len
         )
-        image_feature_size = self.language_module.output_size
+        output_size = self.language_module.output_size
         self.vision_module = VisionModule(
             vision_model,
             image_size,
-            image_feature_size,
+            output_size,
             image_encoder_pretrained,
             freeze_image_encoder,
         )
