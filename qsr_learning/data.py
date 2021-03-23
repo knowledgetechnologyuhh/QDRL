@@ -73,17 +73,6 @@ def generate_entities(
 
 def draw_entities(entities, canvas_size=(224, 224), add_bbox=True, add_front=False):
     canvas = Image.new("RGBA", canvas_size, (0, 0, 0, 255))
-    # d = ImageDraw.Draw(canvas)
-    # d.polygon(
-    #     [
-    #         (0, 0),
-    #         (0, canvas_size[1] - 1),
-    #         (canvas_size[0] - 1, canvas_size[1] - 1),
-    #         (canvas_size[0] - 1, 0),
-    #     ],
-    #     fill=None,
-    #     outline="white",
-    # )
     for entity in entities:
         entity.draw(canvas, add_bbox=add_bbox, add_front=add_front)
     return canvas
@@ -127,8 +116,9 @@ class DRLDataset(Dataset):
     def __init__(
         self,
         entity_names=["octopus", "trophy"],
-        excluded_entities=[],
+        excluded_entity_names=[],
         relation_names=["above", "below", "left_of", "right_of"],
+        excluded_relation_names=[],
         num_entities=2,
         frame_of_reference="absolute",
         w_range=(32, 32),
@@ -140,15 +130,20 @@ class DRLDataset(Dataset):
         canvas_size=(224, 224),
         num_samples=128,
         root_seed=0,
-        from_storage=False,
-        storage_dir="data/",
     ):
         super().__init__()
         self.entity_names = entity_names
-        self.excluded_pairs = set(combinations(excluded_entities, 2))
+        self.excluded_pairs = set(combinations(excluded_entity_names, 2))
+        self.relation_names = set(relation_names)
         self.relations = [
             getattr(qsr_learning.relation, relation_name)
             for relation_name in relation_names
+        ]
+        self.excluded_relation_names = set(excluded_relation_names)
+        self.allowed_relation_names = self.relation_names - self.excluded_relation_names
+        self.allowed_relations = [
+            getattr(qsr_learning.relation, relation_name)
+            for relation_name in self.allowed_relation_names
         ]
         self.num_entities = num_entities
         self.w_range = w_range
@@ -186,29 +181,6 @@ class DRLDataset(Dataset):
             self.word2idx[word] = idx
 
         self.root_seed = root_seed
-        # self.from_storage = from_storage
-        # if from_storage:
-        #     self.hdf5_dir = Path(storage_dir)
-        #     self.hdf5_dir.mkdir(parents=True, exist_ok=True)
-        #     # TODO: continue here
-        #     images = np.array([])
-        #     questions = np.array([])
-        #     for i in trange(len(self)):
-        #         image, question, answer = self[i]
-
-        #     num_images = len(images)
-
-        #     # Create a new HDF5 file
-        #     file = h5py.File(self.hdf5_dir / "tmp.h5", "w")
-
-        #     # Create a dataset in the file
-        #     file.create_dataset(
-        #         "images", np.shape(images), h5py.h5t.STD_U8BE, data=images
-        #     )
-        #     file.create_dataset(
-        #         "meta", np.shape(labels), h5py.h5t.STD_U8BE, data=labels
-        #     )
-        #     file.close()
 
     def __getitem__(self, idx):
         if idx < 0 or idx >= len(self):
@@ -225,19 +197,20 @@ class DRLDataset(Dataset):
 
     def gen_sample(self, idx):
         random.seed(self.root_seed + idx)
-        pair_found = False
-        while not pair_found:
+        triple_found = False
+        while not triple_found:
             entity_names = random.sample(self.entity_names, self.num_entities)
             head_name, tail_name = random.sample(entity_names, 2)
             pair_excluded = ((head_name, tail_name) in self.excluded_pairs) or (
-                (
-                    tail_name,
-                    head_name,
-                )
-                in self.excluded_pairs
+                (tail_name, head_name) in self.excluded_pairs
             )
-            pair_found = not pair_excluded
-        relation = random.choice(self.relations)
+            if pair_excluded:
+                if self.allowed_relation_names:
+                    relation = random.choice(self.allowed_relations)
+                    triple_found = True
+            else:
+                relation = random.choice(self.relations)
+                triple_found = True
         answer = random.randint(0, 1)
         sample_found = False
         while not sample_found:
