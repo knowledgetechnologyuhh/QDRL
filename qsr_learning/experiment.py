@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import git
@@ -10,10 +11,64 @@ from torch.utils.data import DataLoader
 from qsr_learning.data import DRLDataset
 from qsr_learning.models import DRLNet
 
-# fmt:off
-entity_names = ['books', 'camel', 'trophy', 'ice cream', 'person rowing boat', 'ring', 'tropical fish', 'crown', 'horse racing', 'spiral shell', 'watch', 'rocket', 'herb', 'radio', 'sun with face', 'cat face', 'soccer ball', 'leopard', 'bathtub', 'closed umbrella', 'folded hands', 'person walking', 'honey pot', 'face with medical mask', 'star', 'sports medal', 'megaphone', 'backpack', 'movie camera', 'ox', 'face screaming in fear', 'mouse face', 'bowling', 'candy', 'bicycle', 'water buffalo']
-excluded_entities = ['horse racing', 'folded hands']  # 'backpack', 'soccer ball', 'crown', 'face screaming in fear', 'bowling', 'books', 'star', 'water buffalo', 'rocket', 'person walking', 'closed umbrella', 'mouse face', 'watch', 'honey pot', 'ring', 'candy', 'bathtub']
-# fmt: on
+entity_names = [
+    "books",
+    "camel",
+    "trophy",
+    "ice cream",
+    "person rowing boat",
+    "ring",
+    "tropical fish",
+    "crown",
+    "horse racing",
+    "spiral shell",
+    "watch",
+    "rocket",
+    "herb",
+    "radio",
+    "sun with face",
+    "cat face",
+    "soccer ball",
+    "leopard",
+    "bathtub",
+    "closed umbrella",
+    "folded hands",
+    "person walking",
+    "honey pot",
+    "face with medical mask",
+    "star",
+    "sports medal",
+    "megaphone",
+    "backpack",
+    "movie camera",
+    "ox",
+    "face screaming in fear",
+    "mouse face",
+    "bowling",
+    "candy",
+    "bicycle",
+    "water buffalo",
+]
+excluded_entities = ["horse racing", "folded hands"]
+#     "backpack",
+#     "soccer ball",
+#     "crown",
+#     "face screaming in fear",
+#     "bowling",
+#     "books",
+#     "star",
+#     "water buffalo",
+#     "rocket",
+#     "person walking",
+#     "closed umbrella",
+#     "mouse face",
+#     "watch",
+#     "honey pot",
+#     "ring",
+#     "candy",
+#     "bathtub",
+# ]
+
 
 config = Munch()
 config.dataset = Munch(
@@ -22,9 +77,9 @@ config.dataset = Munch(
     relation_names=["left_of", "right_of", "above", "below"],
     num_entities=2,
     frame_of_reference="absolute",
-    w_range=(16, 16),
-    h_range=(16, 16),
-    theta_range=(0, 0),
+    w_range=(8, 16),
+    h_range=(8, 16),
+    theta_range=(0, 2 * math.pi),
     add_bbox=False,
     add_front=False,
     transform=None,
