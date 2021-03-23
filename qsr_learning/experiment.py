@@ -71,7 +71,7 @@ excluded_entity_names = [
     "loudly crying face",
 ]
 relation_names = ["left_of", "right_of", "above", "below"]
-excluded_relation_names = ["above", "below"]
+excluded_relation_names = []
 print(
     len(entity_names),
     len(excluded_entity_names),
@@ -161,13 +161,11 @@ validation_loader_compositional = DataLoader(
 
 
 config.model = Munch(
-    vision_model="resnet18",
     image_size=(3, *config.dataset.canvas_size),
     num_embeddings=len(train_dataset.word2idx),
     embedding_dim=64,
+    hidden_size=128,
     question_len=train_dataset[0][1].shape.numel(),
-    image_encoder_pretrained=False,
-    freeze_image_encoder=False,
 )
 
 
@@ -178,7 +176,7 @@ model = DRLNet(**config.model)
 
 
 config.trainer = Munch(
-    gpus=[0],
+    gpus=[4],
     max_epochs=10,
     precision=32,
     limit_train_batches=1.0,
