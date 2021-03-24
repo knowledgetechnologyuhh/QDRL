@@ -61,7 +61,7 @@ def build_stem(
 
 
 class VisionModule(nn.Module):
-    def __init__(self, image_size: Tuple[int, int, int]):
+    def __init__(self, image_size: Tuple[int, int, int], use_coordconv=False):
         """Process the image.
 
         :param vision_model: vision model name
@@ -69,10 +69,16 @@ class VisionModule(nn.Module):
         :param output_size: the size of the output
         """
         super().__init__()
+        self.image_size = image_size
+        self.use_coordconv = use_coordconv
+        if self.use_coordconv:
+            feature_dim = image_size[0] + 2
+        else:
+            feature_dim = image_size[0]
 
         # Image encoder
         self.image_encoder = build_stem(
-            feature_dim=3,
+            feature_dim=feature_dim,
             stem_dim=64,
             module_dim=64,
             num_layers=6,
@@ -80,23 +86,23 @@ class VisionModule(nn.Module):
             subsample_layers=(1, 3, 5),
         )
 
-        self.image_size = image_size
-        c, h, w = self.image_encoder_output_size
-
     def forward(self, image):
+        m, _, h, w = image.shape
+        if self.use_coordconv:
+            i_coord_channel = (
+                torch.arange(h, device=image.device)
+                .view(1, 1, -1, 1)
+                .expand(m, 1, h, w)
+            )
+            j_coord_channel = (
+                torch.arange(w, device=image.device)
+                .view(1, 1, 1, -1)
+                .expand(m, 1, h, w)
+            )
+            image = torch.cat((image, i_coord_channel, j_coord_channel), dim=1)
         image_features = self.image_encoder(image)
         out = image_features.view(image.shape[0], -1)
         return out
-
-    @property
-    def image_encoder_output_size(self):
-        image = torch.rand(
-            (1, *self.image_size),
-            device=list(set(p.device for p in self.parameters()))[0],
-        )
-        with torch.no_grad():
-            _, c, h, w = self.image_encoder(image).shape
-        return c, h, w
 
     @property
     def output_size(self):
@@ -168,6 +174,7 @@ class DRLNet(pl.LightningModule):
         self,
         vision_model: str,
         image_size: Tuple[int, int, int],
+        use_coordconv: bool,
         num_embeddings: int,
         embedding_dim: int,
         hidden_size: int,
@@ -177,7 +184,7 @@ class DRLNet(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.vision_module = VisionModule(image_size)
+        self.vision_module = VisionModule(image_size, use_coordconv)
         self.language_module = LanguageModule(
             num_embeddings, embedding_dim, hidden_size, question_len
         )
