@@ -206,7 +206,7 @@ model = DRLNet(**config.model)
 
 
 config.trainer = Munch(
-    gpus=[6],
+    gpus=[7],
     max_epochs=10,
     precision=32,
     limit_train_batches=1.0,
