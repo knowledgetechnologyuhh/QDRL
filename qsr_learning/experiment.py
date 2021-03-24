@@ -186,7 +186,7 @@ validation_loader_compositional = DataLoader(
 
 config.model = Munch(
     image_size=(3, *config.dataset.canvas_size),
-    use_coordconv=False,
+    use_coordconv=True,
     num_embeddings=len(train_dataset.word2idx),
     embedding_dim=64,
     hidden_size=128,
@@ -206,7 +206,7 @@ model = DRLNet(**config.model)
 
 
 config.trainer = Munch(
-    gpus=[6],
+    gpus=[7],
     max_epochs=10,
     precision=32,
     limit_train_batches=1.0,
