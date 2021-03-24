@@ -79,6 +79,7 @@ def draw_entities(entities, canvas_size=(224, 224), add_bbox=True, add_front=Fal
 
 
 def get_mean_and_std(
+    vocab,
     entity_names,
     relation_names,
     num_entities,
@@ -90,6 +91,7 @@ def get_mean_and_std(
 ):
     """Get the mean and the std of the specific dataset."""
     drl_dataset = DRLDataset(
+        vocab=vocab,
         entity_names=entity_names,
         relation_names=relation_names,
         num_entities=num_entities,
@@ -156,6 +158,7 @@ class DRLDataset(Dataset):
 
         if not transform:
             self.mean, self.std = get_mean_and_std(
+                vocab,
                 entity_names,
                 relation_names,
                 num_entities,
