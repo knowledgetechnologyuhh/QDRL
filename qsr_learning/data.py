@@ -115,6 +115,7 @@ def get_mean_and_std(
 class DRLDataset(Dataset):
     def __init__(
         self,
+        vocab,
         entity_names=["octopus", "trophy"],
         excluded_entity_names=[],
         relation_names=["above", "below", "left_of", "right_of"],
@@ -176,7 +177,7 @@ class DRLDataset(Dataset):
         self.num_samples = num_samples
 
         self.idx2word, self.word2idx = {}, {}
-        for idx, word in enumerate(sorted(entity_names + relation_names)):
+        for idx, word in enumerate(sorted(vocab)):
             self.idx2word[idx] = word
             self.word2idx[word] = idx
 

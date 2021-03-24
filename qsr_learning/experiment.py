@@ -32,54 +32,54 @@ entity_names = [
     "nerd face",
     "smiling face with halo",
     "expressionless face",
-    # "flushed face",
-    # "face with tears of joy",
-    # "neutral face",
-    # "smiling face with heart-eyes",
-    # "face with medical mask",
-    # "loudly crying face",
+    "flushed face",
+    "face with tears of joy",
+    "neutral face",
+    "smiling face with heart-eyes",
+    "face with medical mask",
+    "loudly crying face",
     "hugging face",
-    # "smiling face with smiling eyes",
-    # "squinting face with tongue",
-    # "face with steam from nose",
-    # "dog face",
-    # "cat face",
-    # "face screaming in fear",
-    # "pouting face",
-    # "pig face",
-    # "rabbit face",
-    # "tiger face",
-    # "monkey face",
-    # "cow face",
-    # "tired face",
-    # "mouse face",
-    # "dragon face",
-    # "face with tongue",
-    # "sun with face",
-    # "worried face",
-    # "dizzy face",
-    # "face with open mouth",
-    # "fearful face",
+    "smiling face with smiling eyes",
+    "squinting face with tongue",
+    "face with steam from nose",
+    "dog face",
+    "cat face",
+    "face screaming in fear",
+    "pouting face",
+    "pig face",
+    "rabbit face",
+    "tiger face",
+    "monkey face",
+    "cow face",
+    "tired face",
+    "mouse face",
+    "dragon face",
+    "face with tongue",
+    "sun with face",
+    "worried face",
+    "dizzy face",
+    "face with open mouth",
+    "fearful face",
 ]
 excluded_entity_names = [
     "hugging face",
     "nerd face",
-    # "fearful face",
-    # "face with steam from nose",
-    # "face with tongue",
-    # "expressionless face",
-    # "dragon face",
-    # "flushed face",
-    # "cow face",
-    # "smiling face with heart-eyes",
-    # "sun with face",
-    # "pig face",
-    # "pouting face",
-    # "smiling face with halo",
-    # "slightly smiling face",
-    # "worried face",
-    # "neutral face",
-    # "loudly crying face",
+    "fearful face",
+    "face with steam from nose",
+    "face with tongue",
+    "expressionless face",
+    "dragon face",
+    "flushed face",
+    "cow face",
+    "smiling face with heart-eyes",
+    "sun with face",
+    "pig face",
+    "pouting face",
+    "smiling face with halo",
+    "slightly smiling face",
+    "worried face",
+    "neutral face",
+    "loudly crying face",
 ]
 relation_names = ["left_of", "right_of", "above", "below"]
 excluded_relation_names = ["above", "below"]
@@ -99,6 +99,7 @@ print(
 
 
 config.dataset = Munch(
+    vocab=sorted(entity_names + relation_names),
     entity_names=entity_names,
     excluded_entity_names=excluded_entity_names,
     relation_names=relation_names,
@@ -206,7 +207,7 @@ model = DRLNet(**config.model)
 
 
 config.trainer = Munch(
-    gpus=[7],
+    gpus=[0],
     max_epochs=10,
     precision=32,
     limit_train_batches=1.0,
@@ -225,10 +226,10 @@ ROOT = Path(repo.working_tree_dir)
 # In[ ]:
 
 
-if repo.is_dirty():
-    raise RepositoryDirtyError(repo, "Have you forgotten to commit the changes?")
-sha = repo.head.object.hexsha
-
+# if repo.is_dirty():
+#     raise RepositoryDirtyError(repo, "Have you forgotten to commit the changes?")
+# sha = repo.head.object.hexsha
+sha = "test"
 
 # In[ ]:
 
