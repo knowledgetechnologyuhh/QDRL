@@ -172,7 +172,6 @@ class FusionModule(nn.Module):
 class DRLNet(pl.LightningModule):
     def __init__(
         self,
-        vision_model: str,
         image_size: Tuple[int, int, int],
         use_coordconv: bool,
         num_embeddings: int,
