@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[ ]:
+
+
+import random
 from pathlib import Path
 
 import git
@@ -10,10 +17,15 @@ from torch.utils.data import DataLoader
 from qsr_learning.data import DRLDataset
 from qsr_learning.models import DRLNet
 
+# In[ ]:
+
+
 config = Munch()
 
 
 # # Dataset
+
+# In[ ]:
 
 
 entity_names = [
@@ -71,7 +83,7 @@ excluded_entity_names = [
     "loudly crying face",
 ]
 relation_names = ["left_of", "right_of", "above", "below"]
-excluded_relation_names = []
+excluded_relation_names = ["above", "below"]
 print(
     len(entity_names),
     len(excluded_entity_names),
@@ -82,6 +94,9 @@ print(
     len(excluded_relation_names),
     set(excluded_relation_names).issubset(set(relation_names)),
 )
+
+
+# In[ ]:
 
 
 config.dataset = Munch(
@@ -101,6 +116,9 @@ config.dataset = Munch(
     num_samples=10 ** 6,
     root_seed=0,
 )
+
+
+# In[ ]:
 
 
 train_dataset = DRLDataset(
@@ -127,7 +145,7 @@ validation_dataset_compositional = DRLDataset(
         **dict(
             entity_names=excluded_entity_names,
             excluded_entity_names=[],
-            relation_names=excluded_relation_names,
+            relation_names=list(set(relation_names) - set(excluded_relation_names)),
             excluded_relation_names=[],
             num_samples=10 ** 4,
             root_seed=train_dataset.num_samples
@@ -139,6 +157,8 @@ validation_dataset_compositional = DRLDataset(
 
 # # Data Loader
 
+# In[ ]:
+
 
 config.data_loader = Munch(
     batch_size=64,
@@ -146,6 +166,9 @@ config.data_loader = Munch(
     num_workers=4,
     pin_memory=True,
 )
+
+
+# In[ ]:
 
 
 train_loader = DataLoader(train_dataset, **config.data_loader)
@@ -159,9 +182,13 @@ validation_loader_compositional = DataLoader(
 
 # # Model
 
+# In[ ]:
+
 
 config.model = Munch(
+    vision_model="resnet18",
     image_size=(3, *config.dataset.canvas_size),
+    use_coordconv=True,
     num_embeddings=len(train_dataset.word2idx),
     embedding_dim=64,
     hidden_size=128,
@@ -169,10 +196,15 @@ config.model = Munch(
 )
 
 
+# In[ ]:
+
+
 model = DRLNet(**config.model)
 
 
 # # Trainer
+
+# In[ ]:
 
 
 config.trainer = Munch(
@@ -185,13 +217,22 @@ config.trainer = Munch(
 )
 
 
+# In[ ]:
+
+
 repo = git.Repo(Path(".").absolute(), search_parent_directories=True)
 ROOT = Path(repo.working_tree_dir)
+
+
+# In[ ]:
 
 
 if repo.is_dirty():
     raise RepositoryDirtyError(repo, "Have you forgotten to commit the changes?")
 sha = repo.head.object.hexsha
+
+
+# In[ ]:
 
 
 tb_logger = loggers.TensorBoardLogger(
