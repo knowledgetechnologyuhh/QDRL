@@ -104,7 +104,7 @@ config.dataset = Munch(
     relation_names=relation_names,
     excluded_relation_names=excluded_relation_names,
     num_entities=2,
-    frame_of_reference="absolute",
+    frame_of_reference="intrinsic",
     w_range=(16, 16),
     h_range=(16, 16),
     theta_range=(0, 0),
@@ -186,7 +186,7 @@ validation_loader_compositional = DataLoader(
 
 config.model = Munch(
     image_size=(3, *config.dataset.canvas_size),
-    use_coordconv=True,
+    use_coordconv=False,
     num_embeddings=len(train_dataset.word2idx),
     embedding_dim=64,
     hidden_size=128,
@@ -206,7 +206,7 @@ model = DRLNet(**config.model)
 
 
 config.trainer = Munch(
-    gpus=[5],
+    gpus=[6],
     max_epochs=10,
     precision=32,
     limit_train_batches=1.0,
