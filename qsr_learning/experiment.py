@@ -145,7 +145,7 @@ validation_dataset_compositional = DRLDataset(
         **dict(
             entity_names=excluded_entity_names,
             excluded_entity_names=[],
-            relation_names=list(set(relation_names) - set(excluded_relation_names)),
+            relation_names=excluded_relation_names,
             excluded_relation_names=[],
             num_samples=10 ** 4,
             root_seed=train_dataset.num_samples
