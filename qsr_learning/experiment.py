@@ -4,7 +4,6 @@
 # In[ ]:
 
 
-import random
 from pathlib import Path
 
 import git
@@ -65,22 +64,22 @@ entity_names = [
 excluded_entity_names = [
     "hugging face",
     "fearful face",
-    "face with steam from nose",
-    "face with tongue",
-    "nerd face",
-    "expressionless face",
-    "dragon face",
-    "flushed face",
-    "cow face",
-    "smiling face with heart-eyes",
-    "sun with face",
-    "pig face",
-    "pouting face",
-    "smiling face with halo",
-    "slightly smiling face",
-    "worried face",
-    "neutral face",
-    "loudly crying face",
+    # "face with steam from nose",
+    # "face with tongue",
+    # "nerd face",
+    # "expressionless face",
+    # "dragon face",
+    # "flushed face",
+    # "cow face",
+    # "smiling face with heart-eyes",
+    # "sun with face",
+    # "pig face",
+    # "pouting face",
+    # "smiling face with halo",
+    # "slightly smiling face",
+    # "worried face",
+    # "neutral face",
+    # "loudly crying face",
 ]
 relation_names = ["left_of", "right_of", "above", "below"]
 excluded_relation_names = ["above", "below"]
@@ -186,7 +185,6 @@ validation_loader_compositional = DataLoader(
 
 
 config.model = Munch(
-    vision_model="resnet18",
     image_size=(3, *config.dataset.canvas_size),
     use_coordconv=True,
     num_embeddings=len(train_dataset.word2idx),
@@ -208,7 +206,7 @@ model = DRLNet(**config.model)
 
 
 config.trainer = Munch(
-    gpus=[4],
+    gpus=[5],
     max_epochs=10,
     precision=32,
     limit_train_batches=1.0,
