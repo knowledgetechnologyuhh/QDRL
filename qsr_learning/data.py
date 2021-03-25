@@ -45,6 +45,53 @@ def inside_canvas(entity: Entity, canvas_size: Tuple[int, int]) -> bool:
     return xs_inside_canvas and ys_inside_canvas
 
 
+# def generate_entities(
+#     entity_names,
+#     frame_of_reference: str = "absolute",
+#     w_range: Tuple[int, int] = (32, 32),
+#     h_range: Tuple[int, int] = (32, 32),
+#     theta_range: Tuple[float, float] = (0.0, 2 * math.pi),
+#     canvas_size: Tuple[int, int] = (224, 224),
+#     relations: List[Callable[[Entity, Entity], bool]] = [
+#         binary_relation.left_of,
+#         binary_relation.right_of,
+#         binary_relation.above,
+#         binary_relation.below,
+#     ],
+#     entity_names_tuple: Union[Tuple[str, str], Tuple[str, str, str]] = None,
+# ) -> List[Entity]:
+#     """
+#     Given a
+
+#     :param canvas_size: (width, height)
+#     """
+#     # Shuffle the entity names, but make sure that the target entities come
+#     # last, so that they are not potentially occuluded.
+#     entity_names_copy = list(set(entity_names) - set(list(entity_names_tuple)))
+#     random.shuffle(entity_names_copy)
+#     entity_names_copy = entity_names_copy + list(entity_names_tuple)
+#     entities_in_canvas = False
+#     while not entities_in_canvas:
+#         entities = []
+#         for name in entity_names_copy:
+#             # Rotate and translate the entities.
+#             theta = random.uniform(*theta_range)
+#             p = (random.uniform(0, canvas_size[0]), random.uniform(0, canvas_size[1]))
+#             entity = Entity(
+#                 name=name,
+#                 frame_of_reference=frame_of_reference,
+#                 p=p,
+#                 theta=theta,
+#                 size=(random.randint(*w_range), (random.randint(*h_range))),
+#             )
+#             entities.append(entity)
+#         # Ensure that all entities are inside the canvas
+#         entities_in_canvas = all(
+#             inside_canvas(entity, canvas_size) for entity in entities
+#         )
+#     return entities
+
+
 def generate_entities(
     entity_names,
     frame_of_reference: str = "absolute",
@@ -61,33 +108,36 @@ def generate_entities(
     entity_names_tuple: Union[Tuple[str, str], Tuple[str, str, str]] = None,
 ) -> List[Entity]:
     """
+    Given a
+
     :param canvas_size: (width, height)
     """
     # Shuffle the entity names, but make sure that the target entities come
     # last, so that they are not potentially occuluded.
-    entity_names_copy = list(set(entity_names) - set(list(entity_names_tuple)))
+    entity_names_copy = deepcopy(entity_names)
     random.shuffle(entity_names_copy)
-    entity_names_copy = entity_names_copy + list(entity_names_tuple)
-    entities_in_canvas = False
-    while not entities_in_canvas:
-        entities = []
-        for name in entity_names_copy:
+    sampled_entities = []
+    for entity_name in entity_names_copy:
+        entity_is_valid = False
+        while not entity_is_valid:
             # Rotate and translate the entities.
             theta = random.uniform(*theta_range)
             p = (random.uniform(0, canvas_size[0]), random.uniform(0, canvas_size[1]))
             entity = Entity(
-                name=name,
+                name=entity_name,
                 frame_of_reference=frame_of_reference,
                 p=p,
                 theta=theta,
                 size=(random.randint(*w_range), (random.randint(*h_range))),
             )
-            entities.append(entity)
-        # Ensure that all entities are inside the canvas
-        entities_in_canvas = all(
-            inside_canvas(entity, canvas_size) for entity in entities
-        )
-    return entities
+            entity_in_canvas = inside_canvas(entity, canvas_size)
+            if entity_in_canvas:
+                entity_is_valid = all(
+                    any(r(entity, e) for r in binary_relations)
+                    for e in sampled_entities
+                )
+        sampled_entities.append(entity)
+    return sampled_entities
 
 
 def draw_entities(entities, canvas_size=(224, 224), add_bbox=True, add_front=False):
@@ -101,6 +151,7 @@ def get_mean_and_std(
     vocab,
     entity_names,
     relation_names,
+    frame_of_reference,
     num_entities,
     w_range,
     h_range,
@@ -114,7 +165,7 @@ def get_mean_and_std(
         entity_names=entity_names,
         relation_names=relation_names,
         num_entities=num_entities,
-        frame_of_reference="absolute",
+        frame_of_reference=frame_of_reference,
         w_range=w_range,
         h_range=h_range,
         theta_range=(0, 0),
@@ -199,6 +250,7 @@ class DRLDataset(Dataset):
                 vocab,
                 entity_names,
                 relation_names,
+                frame_of_reference,
                 num_entities,
                 w_range,
                 h_range,
@@ -280,7 +332,7 @@ class DRLDataset(Dataset):
                 for i in range(self.arity):
                     if entity.name == entity_names_tuple[i]:
                         entity_tuple[i] = entity
-            # Ensure that the two objects do not overlap.
+            # Ensure that the a relations holds between entities in the tuple
             if any(
                 r(*entity_tuple)
                 for r in (binary_relations if self.arity == 2 else ternary_relations)
@@ -294,5 +346,4 @@ class DRLDataset(Dataset):
         )
         background = Image.new("RGBA", image.size, (0, 0, 0))
         image = Image.alpha_composite(background, image).convert("RGB")
-
         return image, question, answer
