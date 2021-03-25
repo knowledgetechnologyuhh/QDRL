@@ -119,7 +119,7 @@ class Entity:
         self.image = load_emoji(name, size=size)
         self.image, self.image_array, self.flt_bbox = crop_image(self.image)
 
-        self.p = p
+        self.p = np.array(p)
         self.theta = theta
         self.center = (self.flt_bbox[2] - self.flt_bbox[0]) / 2 + self.flt_bbox[0]
         self.rotate(self.theta)
@@ -138,15 +138,17 @@ class Entity:
         self.image_array = image2array(self.image)
         if self.frame_of_reference == "absolute":
             self.image, self.image_array, self.flt_bbox = crop_image(self.image)
+            self.center = (self.flt_bbox[2] - self.flt_bbox[0]) / 2 + self.flt_bbox[0]
         elif (
             self.frame_of_reference == "intrinsic"
-        ):  # objects have intrinsic orientations
+            or self.frame_of_reference == "relative"
+        ):
             self.flt_bbox = (self.flt_bbox - self.center) @ R.transpose() + self.center
         else:
             raise ValueError("The chosen frame of reference is not defined!")
 
     def translate(self, p):
-        self.flt_bbox += np.array(p)
+        self.flt_bbox += p
 
     def draw(
         self,
