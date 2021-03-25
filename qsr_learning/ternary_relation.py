@@ -1,8 +1,10 @@
-from qsr_learning import relation
-from qsr_learning.entity import Entity
-import numpy as np
-from copy import deepcopy
 import math
+from copy import deepcopy
+
+import numpy as np
+
+from qsr_learning import binary_relation
+from qsr_learning.entity import Entity
 
 
 def rotate_bbox(entity1, entity2):
@@ -26,19 +28,19 @@ def rotate_bbox(entity1, entity2):
 
 def left_of(entity1: Entity, entity2: Entity, entity3: Entity):
     entity2_rotated = rotate_bbox(entity2, entity3)
-    return relation.left_of(entity1, entity2_rotated)
+    return binary_relation.left_of(entity1, entity2_rotated)
 
 
 def right_of(entity1: Entity, entity2: Entity, entity3: Entity):
     entity2_rotated = rotate_bbox(entity2, entity3)
-    return relation.right_of(entity1, entity2_rotated)
+    return binary_relation.right_of(entity1, entity2_rotated)
 
 
 def in_front_of(entity1: Entity, entity2: Entity, entity3: Entity):
     entity2_rotated = rotate_bbox(entity2, entity3)
-    return relation.below(entity1, entity2_rotated)
+    return binary_relation.below(entity1, entity2_rotated)
 
 
 def behind(entity1: Entity, entity2: Entity, entity3: Entity):
     entity2_rotated = rotate_bbox(entity2, entity3)
-    return relation.above(entity1, entity2_rotated)
+    return binary_relation.above(entity1, entity2_rotated)

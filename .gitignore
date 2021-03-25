@@ -5,3 +5,4 @@ __pycache__/
 *.pt
 lightning_logs/
 *.bak
+/.virtual_documents/
