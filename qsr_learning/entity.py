@@ -24,9 +24,9 @@ with open(emojis_path, "r") as f:
 
 # A dictionary that assigns a name to each unicode with a corresponding image.
 unicode2emoji_name = {
-    unicode: entry["name"]
+    entry["unicode"].replace(" ", "-"): entry["name"]
     for entry in emojis
-    if (unicode := entry["unicode"].replace(" ", "-")) in image_unicodes
+    if entry["unicode"].replace(" ", "-") in image_unicodes
     and entry["name"]
 }
 

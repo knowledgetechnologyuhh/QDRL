@@ -232,7 +232,7 @@ class DRLDataset(Dataset):
                 getattr(qsr_learning.ternary_relation, relation_name)
                 for relation_name in self.allowed_relation_names
             ]
-            vocab = vocab + ["as_seen_from"]
+            # vocab = vocab + ["as_seen_from"]
         else:
             raise ValueError("the frame of reference does not exist!")
         self.entity_names = entity_names
