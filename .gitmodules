@@ -1,3 +1,6 @@
 [submodule "emoji-images"]
 	path = emoji-images
 	url = https://github.com/cj1128/emoji-images.git
+[submodule "systematic-generalization-sqoop"]
+	path = systematic-generalization-sqoop
+	url = https://github.com/rizar/systematic-generalization-sqoop.git
