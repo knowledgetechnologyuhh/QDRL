@@ -157,11 +157,9 @@ def test(args):
     output_kwargs['root_datadir'] = join(dirname(abspath(__file__)), os.pardir, "data", args.reference_type, suffix0, suffix1, suffix2, suffix3)
 
     # log file
-    """
     test_logfile = os.path.join(log_dir,"test_{}.log".format(args.test_mode))
     sys.stdout = Logger(logfile=test_logfile)
     print("args: {}".format(args))
-    """
 
     if args.reference_type == "intrinsic" or args.reference_type == "absolute":
         relation_names = relation_names_abs_intri
