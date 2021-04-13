@@ -1,0 +1,14 @@
+name: sysgen
+channels:
+  - defaults
+dependencies:
+  - numpy
+  - h5py
+  - termcolor
+  - cuda90
+  - scipy
+  - tqdm
+  - pillow
+  - python=3.6
+  - pytorch
+  - torchvision
