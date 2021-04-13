@@ -13,7 +13,6 @@ import shutil
 import math
 from copy import deepcopy
 
-import pytorch_lightning as pl
 import torch
 from munch import Munch
 from torch.utils.data import DataLoader, random_split

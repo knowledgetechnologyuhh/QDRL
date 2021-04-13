@@ -1,14 +1,18 @@
-name: sysgen
+name: qsr
 channels:
+  - pytorch
   - defaults
 dependencies:
-  - numpy
-  - h5py
-  - termcolor
-  - cuda90
-  - scipy
   - tqdm
+  - numpy
   - pillow
-  - python=3.6
   - pytorch
   - torchvision
+  - scipy
+  - h5py
+  - termcolor
+  - python=3.6
+  - munch
+  - gitpython
+  - tensorboard
+  - python-dateutil
