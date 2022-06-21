@@ -3,7 +3,6 @@
 ```
 git clone https://git.informatik.uni-hamburg.de/lee/qsr-learning.git
 cd qsr-learning
-git checkout baselines
 ```
 
 ### Setup the environment using `conda` (recommended)
