@@ -34,6 +34,5 @@ python -m pip install -e systematic-generalization-sqoop
 ### Testing
 ```
 ./baselines/test_model_gpu0.sh
-```
 pip install -e systematic-generalization-sqoop
 ```
